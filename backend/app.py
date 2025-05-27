@@ -14,6 +14,7 @@ TABELA_REG = "RegistrosPonto"
 REGIAO = "us-east-1"
 
 app = Flask(__name__)
+app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'sua_chave_secreta_segura')
 CORS(app)
 
 # Clients AWS
@@ -42,6 +43,17 @@ def reconhecer_funcionario(caminho_foto):
         return None
 
 # Rotas
+@app.route('/login', methods=['POST'])
+def login():
+    data = request.json
+    usuario = data.get('usuario')
+    senha = data.get('senha')
+    # Aqui você deve validar o usuário e senha com seu banco de dados
+    if usuario == 'admin' and senha == '1234':  # Exemplo simples
+        token = generate_token(usuario)
+        return jsonify({'token': token})
+    return jsonify({'error': 'Credenciais inválidas'}), 401
+
 @app.route('/registrar_ponto', methods=['POST'])
 def registrar_ponto():
     if 'foto' not in request.files:
