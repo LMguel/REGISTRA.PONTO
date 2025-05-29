@@ -7,7 +7,10 @@
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
     "newArchEnabled": true,
-    "plugins": ["expo-camera", "expo-image-picker"],
+    "plugins": [
+      "expo-camera",
+      "expo-image-picker"
+    ],
     "splash": {
       "image": "./assets/splash-icon.png",
       "resizeMode": "contain",
@@ -16,11 +19,15 @@
     "ios": {
       "supportsTablet": true,
       "infoPlist": {
-      "NSCameraUsageDescription": "Este app usa a câmera para registrar pontos dos funcionários."
-    }
+        "NSCameraUsageDescription": "Este app usa a câmera para registrar pontos dos funcionários."
+      }
     },
     "android": {
-      "permissions": ["CAMERA"],
+      "permissions": [
+        "android.permission.CAMERA",
+        "android.permission.CAMERA",
+        "android.permission.RECORD_AUDIO"
+      ],
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#ffffff"
@@ -29,6 +36,11 @@
     },
     "web": {
       "favicon": "./assets/favicon.png"
+    },
+    "extra": {
+      "eas": {
+        "projectId": "365eaf9b-5d61-4848-891f-c6aac787759a"
+      }
     }
   }
 }

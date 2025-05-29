@@ -43,61 +43,64 @@ def reconhecer_funcionario(caminho_foto):
         return None
 
 # Rotas
-@app.route('/login', methods=['POST'])
-def login():
-    data = request.json
-    usuario = data.get('usuario')
-    senha = data.get('senha')
-    # Aqui você deve validar o usuário e senha com seu banco de dados
-    if usuario == 'admin' and senha == '1234':  # Exemplo simples
-        token = generate_token(usuario)
-        return jsonify({'token': token})
-    return jsonify({'error': 'Credenciais inválidas'}), 401
 
 @app.route('/registrar_ponto', methods=['POST'])
 def registrar_ponto():
-    if 'foto' not in request.files:
-        return jsonify({"error": "Nenhuma foto enviada"}), 400
-    
-    foto = request.files['foto']
-    temp_path = os.path.join(tempfile.gettempdir(), f"temp_{uuid.uuid4().hex}.jpg")
-    foto.save(temp_path)
-    
-    funcionario_id = reconhecer_funcionario(temp_path)
-    if not funcionario_id:
+    try:
+        if 'foto' not in request.files:
+            return jsonify({"error": "Nenhuma foto enviada"}), 400
+
+        foto = request.files['foto']
+        temp_path = os.path.join(tempfile.gettempdir(), f"temp_{uuid.uuid4().hex}.jpg")
+        foto.save(temp_path)
+
+        funcionario_id = reconhecer_funcionario(temp_path)
         os.remove(temp_path)
-        return jsonify({"error": "Funcionário não reconhecido"}), 404
 
-    # Obter o nome do funcionário pelo ID
-    response = tabela_funcionarios.get_item(Key={'id': funcionario_id})
-    funcionario_nome = response['Item']['nome'] if 'Item' in response else 'Desconhecido'
+        if not funcionario_id:
+            return jsonify({"error": "Funcionário não reconhecido"}), 404
 
-    # Verificar registros do dia
-    hoje = datetime.now().strftime('%Y-%m-%d')
-    response_registros = tabela_registros.scan(
-        FilterExpression='funcionario_id = :id AND begins_with(data_hora, :hoje)',
-        ExpressionAttributeValues={':id': funcionario_id, ':hoje': hoje}
-    )
-    registros_do_dia = response_registros['Items']
+        # Buscar dados do funcionário
+        response = tabela_funcionarios.get_item(Key={'id': funcionario_id})
+        funcionario = response.get('Item')
 
-    # Determinar o tipo (entrada ou saída)
-    tipo = 'entrada' if not registros_do_dia or registros_do_dia[-1]['tipo'] == 'saída' else 'saída'
+        if not funcionario:
+            return jsonify({"error": "Funcionário não encontrado no banco de dados"}), 404
 
-    registro = {
-        'registro_id': str(uuid.uuid4()),
-        'funcionario_id': funcionario_id,
-        'data_hora': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
-        'tipo': tipo
-    }
-    tabela_registros.put_item(Item=registro)
-    
-    os.remove(temp_path)
-    return jsonify({
-        "success": True,
-        "funcionario": funcionario_nome,
-        "hora": registro['data_hora'],
-        "tipo": tipo
-    })
+        funcionario_nome = funcionario['nome']
+
+        # Verificar registros do dia
+        hoje = datetime.now().strftime('%Y-%m-%d')
+        response_registros = tabela_registros.scan(
+            FilterExpression='funcionario_id = :id AND begins_with(data_hora, :hoje)',
+            ExpressionAttributeValues={':id': funcionario_id, ':hoje': hoje}
+        )
+        registros_do_dia = sorted(response_registros['Items'], key=lambda x: x['data_hora'])
+
+        # Definir tipo do registro
+        tipo = 'entrada'
+        if registros_do_dia and registros_do_dia[-1]['tipo'] == 'entrada':
+            tipo = 'saída'
+
+        # Registrar no DynamoDB
+        registro = {
+            'registro_id': str(uuid.uuid4()),
+            'funcionario_id': funcionario_id,
+            'data_hora': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
+            'tipo': tipo
+        }
+        tabela_registros.put_item(Item=registro)
+
+        return jsonify({
+            "success": True,
+            "funcionario": funcionario_nome,
+            "hora": registro['data_hora'],
+            "tipo": tipo
+        }), 200
+
+    except Exception as e:
+        print(f"Erro no registro de ponto: {str(e)}")
+        return jsonify({"error": "Erro interno no servidor"}), 500
 
 @app.route('/funcionarios', methods=['GET'])
 def listar_funcionarios():
@@ -264,42 +267,56 @@ def cadastrar_funcionario():
         nome = request.form.get('nome')
         cargo = request.form.get('cargo')
         foto = request.files.get('foto')
-        
+
         if not all([nome, cargo, foto]):
-            return jsonify({"error": "Dados incompletos"}), 400
-        
+            return jsonify({"error": "Nome, cargo e foto são obrigatórios"}), 400
+
         funcionario_id = f"{nome.lower().replace(' ', '_')}_{uuid.uuid4().hex[:6]}"
-        foto_nome = f"{funcionario_id}.jpg"
-        temp_path = os.path.join(tempfile.gettempdir(), foto_nome)
+        foto_nome = f"funcionarios/{funcionario_id}.jpg"
+        temp_path = os.path.join(tempfile.gettempdir(), foto_nome.split('/')[-1])
         foto.save(temp_path)
-        
-        # Upload para S3
+
+        # Enviar foto para o S3
         foto_url = enviar_s3(temp_path, foto_nome)
-        
-        # Cadastro no Rekognition
-        rekognition.index_faces(
-            CollectionId=COLLECTION,
-            Image={'S3Object': {'Bucket': BUCKET, 'Name': foto_nome}},
-            ExternalImageId=funcionario_id,
-            DetectionAttributes=['DEFAULT']
-        )
-        
-        # Salvar no DynamoDB
+
+        # Indexar rosto no Rekognition
+        with open(temp_path, 'rb') as image:
+            rekognition_response = rekognition.index_faces(
+                CollectionId=COLLECTION,
+                Image={'Bytes': image.read()},
+                ExternalImageId=funcionario_id,
+                MaxFaces=1,
+                QualityFilter="AUTO",
+                DetectionAttributes=["DEFAULT"]
+            )
+
+        if not rekognition_response['FaceRecords']:
+            os.remove(temp_path)
+            return jsonify({"error": "Nenhum rosto detectado na imagem."}), 400
+
+        face_id = rekognition_response['FaceRecords'][0]['Face']['FaceId']
+
+        # Salvar dados no DynamoDB
         tabela_funcionarios.put_item(Item={
             'id': funcionario_id,
             'nome': nome,
             'cargo': cargo,
             'foto_url': foto_url,
+            'face_id': face_id,
             'data_cadastro': datetime.now().strftime('%Y-%m-%d')
         })
-        
+
         os.remove(temp_path)
         return jsonify({
-            "success": True, 
-            "foto_url": foto_url,
-            "id": funcionario_id
-        })
+            "success": True,
+            "id": funcionario_id,
+            "nome": nome,
+            "cargo": cargo,
+            "foto_url": foto_url
+        }), 201
+
     except Exception as e:
+        print(f"Erro ao cadastrar funcionário: {str(e)}")
         return jsonify({"error": str(e)}), 500
 
 @app.route('/registros', methods=['GET'])
