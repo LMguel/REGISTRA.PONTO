@@ -1,6 +1,0 @@
-skips: [B101]  # Ignora asserts
-tests:
-  - B102
-  - B105
-exclude_dirs:
-  - migrations
