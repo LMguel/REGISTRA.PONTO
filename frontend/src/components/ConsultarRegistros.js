@@ -14,19 +14,12 @@ import {
   TextField,
   Button,
   Autocomplete,
-  Dialog,
-  DialogTitle,
-  DialogContent,
-  DialogActions,
-  Snackbar,
-  IconButton
+  Snackbar
 } from '@mui/material';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import * as XLSX from 'xlsx';
-import EmailIcon from '@mui/icons-material/Email';
 import FileDownloadIcon from '@mui/icons-material/FileDownload';
-import CloseIcon from '@mui/icons-material/Close';
 
 function ConsultarRegistros() {
   const [registros, setRegistros] = useState([]);
@@ -36,9 +29,6 @@ function ConsultarRegistros() {
   const [dataFim, setDataFim] = useState('');
   const [nome, setNome] = useState('');
   const [opcoesNomes, setOpcoesNomes] = useState([]);
-  const [emailDialogOpen, setEmailDialogOpen] = useState(false);
-  const [emailDestino, setEmailDestino] = useState('');
-  const [emailEnviando, setEmailEnviando] = useState(false);
   const [snackbarOpen, setSnackbarOpen] = useState(false);
   const [snackbarMessage, setSnackbarMessage] = useState('');
   const [snackbarSeverity, setSnackbarSeverity] = useState('success');
@@ -88,67 +78,42 @@ function ConsultarRegistros() {
   const exportToExcel = () => {
     try {
       const wb = XLSX.utils.book_new();
-      
-      // Cabeçalho
-      XLSX.utils.sheet_add_aoa(wb.Sheets.Sheet1, [
-        ["Relatório Consolidado de Horas Trabalhadas"],
-        [],
+      // Cabeçalho personalizado
+      const wsData = [
+        ["Relatório de Horas Trabalhadas"],
         ["Período:", `${dataInicio || 'Não informado'} a ${dataFim || 'Não informado'}`],
         [],
         ["Funcionário", "Horas Trabalhadas"]
-      ], { origin: "A1" });
-
-      // Dados
-      const dados = registros.map(reg => ({
-        "Funcionário": reg.funcionario || 'Desconhecido',
-        "Horas Trabalhadas": reg.horas_trabalhadas || 'N/A'
-      }));
-      
-      const ws = XLSX.utils.json_to_sheet(dados, { origin: "A6" });
-      
-      // Ajustar largura das colunas
-      ws['!cols'] = [
-        { wch: 30 }, // Funcionário
-        { wch: 20 }  // Horas Trabalhadas
       ];
-
+      // Dados filtrados
+      registros.forEach(reg => {
+        // Se houver campo de data, formate para DD-MM-AAAA
+        let funcionario = reg.funcionario || 'Desconhecido';
+        let horas = reg.horas_trabalhadas || 'N/A';
+        // Se houver campo data, formate
+        if (reg.data) {
+          let [yyyy, mm, dd] = reg.data.split('-');
+          if (yyyy && mm && dd) {
+            reg.data = `${dd}-${mm}-${yyyy}`;
+          }
+        }
+        wsData.push([
+          funcionario,
+          horas
+        ]);
+      });
+      const ws = XLSX.utils.aoa_to_sheet(wsData);
+      ws['!cols'] = [
+        { wch: 30 },
+        { wch: 20 }
+      ];
       XLSX.utils.book_append_sheet(wb, ws, "Horas Trabalhadas");
-
-      // Gerar arquivo
-      const fileName = `Horas_Trabalhadas_${dataInicio}_a_${dataFim}.xlsx`;
+      const fileName = `Horas_Trabalhadas_${dataInicio.split('-').reverse().join('-')}_a_${dataFim.split('-').reverse().join('-')}.xlsx`;
       XLSX.writeFile(wb, fileName);
-      
       showSnackbar(`Relatório "${fileName}" gerado com sucesso!`, 'success');
     } catch (err) {
       console.error('Erro ao exportar:', err);
       showSnackbar('Erro ao gerar relatório', 'error');
-    }
-  };
-
-  const enviarPorEmail = async () => {
-    if (!emailDestino || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(emailDestino)) {
-      showSnackbar('Por favor, insira um email válido', 'error');
-      return;
-    }
-
-    setEmailEnviando(true);
-    try {
-      await axios.post('http://localhost:5000/enviar-email-consolidado', {
-        registros: registros,
-        email: emailDestino,
-        periodo: {
-          inicio: dataInicio,
-          fim: dataFim
-        }
-      });
-      
-      showSnackbar('Relatório enviado com sucesso!', 'success');
-      setEmailDialogOpen(false);
-    } catch (err) {
-      console.error('Erro ao enviar email:', err);
-      showSnackbar('Erro ao enviar relatório', 'error');
-    } finally {
-      setEmailEnviando(false);
     }
   };
 
@@ -200,18 +165,6 @@ function ConsultarRegistros() {
             }}
           >
             Exportar Excel
-          </Button>
-          <Button
-            variant="contained"
-            startIcon={<EmailIcon />}
-            onClick={() => setEmailDialogOpen(true)}
-            disabled={registros.length === 0 || loading}
-            sx={{
-              backgroundColor: '#2196f3',
-              '&:hover': { backgroundColor: '#1976d2' }
-            }}
-          >
-            Enviar por Email
           </Button>
         </Box>
 
@@ -310,59 +263,6 @@ function ConsultarRegistros() {
           </TableContainer>
         )}
 
-        <Dialog open={emailDialogOpen} onClose={() => !emailEnviando && setEmailDialogOpen(false)}>
-          <DialogTitle>
-            Enviar Relatório Consolidado
-            <IconButton
-              aria-label="close"
-              onClick={() => !emailEnviando && setEmailDialogOpen(false)}
-              sx={{
-                position: 'absolute',
-                right: 8,
-                top: 8,
-                color: (theme) => theme.palette.grey[500],
-              }}
-              disabled={emailEnviando}
-            >
-              <CloseIcon />
-            </IconButton>
-          </DialogTitle>
-          <DialogContent>
-            <TextField
-              autoFocus
-              margin="dense"
-              label="Email Destinatário"
-              type="email"
-              fullWidth
-              variant="outlined"
-              value={emailDestino}
-              onChange={(e) => setEmailDestino(e.target.value)}
-              disabled={emailEnviando}
-              sx={{ mt: 2 }}
-            />
-          </DialogContent>
-          <DialogActions>
-            <Button 
-              onClick={() => setEmailDialogOpen(false)}
-              disabled={emailEnviando}
-            >
-              Cancelar
-            </Button>
-            <Button
-              onClick={enviarPorEmail}
-              disabled={emailEnviando || !emailDestino}
-              color="primary"
-              variant="contained"
-            >
-              {emailEnviando ? (
-                <>
-                  <CircularProgress size={24} sx={{ mr: 1 }} />
-                  Enviando...
-                </>
-              ) : 'Enviar'}
-            </Button>
-          </DialogActions>
-        </Dialog>
       </Paper>
 
       <Snackbar

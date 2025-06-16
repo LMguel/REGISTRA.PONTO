@@ -59,7 +59,7 @@ export default function RegistroPonto() {
         type,
       } as any);
 
-      const response = await axios.post('http://192.168.1.10:5000/registrar_ponto', formData, {
+      const response = await axios.post('http://192.168.1.108:5000/registrar_ponto', formData, {
         headers: { 'Content-Type': 'multipart/form-data' },
         timeout: 10000,
       });

@@ -1,7 +1,7 @@
 import React from 'react';
-import { Button, Box, Typography } from '@mui/material';
+import { Button, Box, Typography, Paper } from '@mui/material';
 import { useNavigate } from 'react-router-dom';
-import logo from '../imagem/logo.jpg';
+import logo from '../imagem/logo.png';
 
 function Home() {
   const navigate = useNavigate();
@@ -10,110 +10,132 @@ function Home() {
     <Box
       sx={{
         minHeight: '100vh',
+        backgroundColor: '#f4f6f8',
         display: 'flex',
-        flexDirection: 'column',
-        alignItems: 'center',
         justifyContent: 'center',
-        background: 'linear-gradient(135deg, #e0f7fa, #80deea)',
+        alignItems: 'center',
         padding: '20px',
       }}
     >
-      <Box
+      <Paper
+        elevation={6}
         sx={{
-          display: 'flex',
-          flexDirection: 'column',
-          alignItems: 'center',
-          marginBottom: '40px',
+          padding: '40px',
+          borderRadius: '16px',
+          maxWidth: '600px',
+          width: '100%',
+          textAlign: 'center',
+          backgroundColor: '#ffffff',
         }}
       >
-        {/* Logo redonda */}
-        <img
-          src={logo}
-          alt="Logo"
-          style={{
-            height: '120px',
-            width: '120px',
-            borderRadius: '50%',
-            marginBottom: '10px',
-            border: '4px solid #0288d1',
-          }}
-        />
-        {/* Texto estilizado */}
-        <Typography
-          variant="h5"
-          sx={{
-            fontWeight: 'bold',
-            color: '#004d40',
-            textAlign: 'center',
-            fontFamily: "'Poppins', sans-serif",
-            marginBottom: '20px',
-          }}
-        >
-          Centro Educacional Positiva Idade
-        </Typography>
-        {/* Título principal */}
-        <Typography
-          variant="h3"
-          sx={{
-            fontWeight: 'bold',
-            color: '#004d40',
-            textAlign: 'center',
-          }}
-        >
-          Bem-vindo ao Sistema de Registro de Ponto
-        </Typography>
-      </Box>
+        {/* Logo */}
+        <Box sx={{ mb: 2 }}>
+          <img
+            src={logo}
+            alt="Logo"
+            style={{
+              height: '100px',
+              width: '100px',
+              borderRadius: '50%',
+              border: '3px solid #0288d1',
+            }}
+          />
+        </Box>
 
-      <Box sx={{ display: 'flex', gap: '20px', flexWrap: 'wrap', justifyContent: 'center' }}>
-        <Button
-          variant="contained"
-          onClick={() => navigate('/listar')}
+        {/* Título */}
+        <Typography
+          variant="h4"
           sx={{
-            background: 'linear-gradient(135deg, #4fc3f7, #0288d1)',
-            color: '#fff',
-            padding: '10px 20px',
-            fontSize: '1rem',
-            borderRadius: '8px',
-            '&:hover': {
-              background: 'linear-gradient(135deg, #0288d1, #01579b)',
-            },
+            fontWeight: 'bold',
+            color: '#0288d1',
+            mb: 1,
+            fontFamily: "'Poppins', sans-serif",
           }}
         >
-          Listar Funcionários
-        </Button>
-        <Button
-          variant="contained"
-          onClick={() => navigate('/registrar')}
+          REGISTRA PONTO
+        </Typography>
+
+        {/* Subtítulo */}
+        <Typography
+          variant="subtitle1"
           sx={{
-            background: 'linear-gradient(135deg, #4fc3f7, #0288d1)',
-            color: '#fff',
-            padding: '10px 20px',
-            fontSize: '1rem',
-            borderRadius: '8px',
-            '&:hover': {
-              background: 'linear-gradient(135deg, #0288d1, #01579b)',
-            },
+            color: '#555',
+            mb: 4,
+            fontFamily: "'Poppins', sans-serif",
           }}
         >
-          Registrar Ponto
-        </Button>
-        <Button
-          variant="contained"
-          onClick={() => navigate('/consultar')}
+          Sistema de Registro de Ponto com Reconhecimento Facial
+        </Typography>
+
+        {/* Botões */}
+        <Box
           sx={{
-            background: 'linear-gradient(135deg, #4fc3f7, #0288d1)',
-            color: '#fff',
-            padding: '10px 20px',
-            fontSize: '1rem',
-            borderRadius: '8px',
-            '&:hover': {
-              background: 'linear-gradient(135deg, #0288d1, #01579b)',
-            },
+            display: 'flex',
+            flexDirection: 'column',
+            gap: '16px',
           }}
         >
-          Consultar Registros
-        </Button>
-      </Box>
+          <Button
+            variant="contained"
+            fullWidth
+            onClick={() => navigate('/listar')}
+            sx={{
+              backgroundColor: '#0288d1',
+              color: '#fff',
+              textTransform: 'none',
+              borderRadius: '12px',
+              fontSize: '1rem',
+              fontWeight: 500,
+              padding: '10px',
+              '&:hover': {
+                backgroundColor: '#0277bd',
+              },
+            }}
+          >
+            Listar Funcionários
+          </Button>
+
+          <Button
+            variant="contained"
+            fullWidth
+            onClick={() => navigate('/registrar')}
+            sx={{
+              backgroundColor: '#0288d1',
+              color: '#fff',
+              textTransform: 'none',
+              borderRadius: '12px',
+              fontSize: '1rem',
+              fontWeight: 500,
+              padding: '10px',
+              '&:hover': {
+                backgroundColor: '#0277bd',
+              },
+            }}
+          >
+            Registrar Ponto
+          </Button>
+
+          <Button
+            variant="contained"
+            fullWidth
+            onClick={() => navigate('/consultar')}
+            sx={{
+              backgroundColor: '#0288d1',
+              color: '#fff',
+              textTransform: 'none',
+              borderRadius: '12px',
+              fontSize: '1rem',
+              fontWeight: 500,
+              padding: '10px',
+              '&:hover': {
+                backgroundColor: '#0277bd',
+              },
+            }}
+          >
+            Consultar Registros
+          </Button>
+        </Box>
+      </Paper>
     </Box>
   );
 }

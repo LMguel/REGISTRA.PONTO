@@ -9,6 +9,28 @@ from aws_utils import (
 
 routes = Blueprint('routes', __name__)
 
+@routes.route('/registros/<registro_id>', methods=['DELETE'])
+def deletar_registro(registro_id):
+    try:
+        # Buscar o registro pelo registro_id (scan, pois não é chave primária)
+        response = tabela_registros.scan(
+            FilterExpression='registro_id = :rid',
+            ExpressionAttributeValues={':rid': registro_id}
+        )
+        items = response.get('Items', [])
+        if not items:
+            return jsonify({'error': 'Registro não encontrado'}), 404
+        registro = items[0]
+        # Deletar usando a chave composta correta
+        tabela_registros.delete_item(Key={
+            'funcionario_id': registro['funcionario_id'],
+            'data_hora': registro['data_hora']
+        })
+        return jsonify({'message': 'Registro deletado com sucesso!'}), 200
+    except Exception as e:
+        print(f"Erro ao deletar registro: {str(e)}")
+        return jsonify({'error': 'Erro ao deletar registro'}), 500
+
 @routes.route('/registrar_ponto', methods=['POST'])
 def registrar_ponto():
     try:
@@ -42,10 +64,8 @@ def registrar_ponto():
         )
         registros_do_dia = sorted(response_registros['Items'], key=lambda x: x['data_hora'])
 
-        # Definir tipo do registro
-        tipo = 'entrada'
-        if registros_do_dia and registros_do_dia[-1]['tipo'] == 'entrada':
-            tipo = 'saída'
+        # Alternar tipo do registro
+        tipo = 'entrada' if not registros_do_dia or registros_do_dia[-1]['tipo'] == 'saída' else 'saída'
 
         # Registrar no DynamoDB
         registro = {
@@ -149,6 +169,7 @@ def atualizar_foto_funcionario(funcionario_id):
                     CollectionId=COLLECTION,
                     FaceIds=[face['FaceId']]
                 )
+                break
         foto_nome = f"{funcionario_id}.jpg"
         foto_url = enviar_s3(temp_path, foto_nome)
         rekognition.index_faces(
@@ -271,6 +292,12 @@ def listar_registros():
             filtro['ExpressionAttributeValues'] = expression_attributes
         response = tabela_registros.scan(**filtro)
         registros = response['Items']
+        # Formatar data para DD-MM-AAAA
+        for reg in registros:
+            if 'data_hora' in reg:
+                data_part, hora_part = reg['data_hora'].split(' ')
+                yyyy, mm, dd = data_part.split('-')
+                reg['data_hora'] = f"{dd}-{mm}-{yyyy} {hora_part}"
         if funcionario_id:
             funcionario = tabela_funcionarios.get_item(Key={'id': funcionario_id})
             funcionario_nome = funcionario['Item']['nome'] if 'Item' in funcionario else 'Desconhecido'
@@ -286,12 +313,20 @@ def listar_registros():
                     'horas_trabalhadas': timedelta()
                 }
             if registro['tipo'] == 'entrada':
-                horas_trabalhadas_por_funcionario[funcionario_id]['ultima_entrada'] = datetime.strptime(
-                    registro['data_hora'], '%Y-%m-%d %H:%M:%S'
-                )
+                try:
+                    horas_trabalhadas_por_funcionario[funcionario_id]['ultima_entrada'] = datetime.strptime(
+                        registro['data_hora'], '%d-%m-%Y %H:%M:%S'
+                    )
+                except ValueError:
+                    horas_trabalhadas_por_funcionario[funcionario_id]['ultima_entrada'] = datetime.strptime(
+                        registro['data_hora'], '%d-%m-%Y %H:%M'
+                    )
             elif registro['tipo'] == 'saída' and 'ultima_entrada' in horas_trabalhadas_por_funcionario[funcionario_id]:
+                try:
+                    saida = datetime.strptime(registro['data_hora'], '%d-%m-%Y %H:%M:%S')
+                except ValueError:
+                    saida = datetime.strptime(registro['data_hora'], '%d-%m-%Y %H:%M')
                 entrada = horas_trabalhadas_por_funcionario[funcionario_id].pop('ultima_entrada')
-                saida = datetime.strptime(registro['data_hora'], '%Y-%m-%d %H:%M:%S')
                 horas_trabalhadas_por_funcionario[funcionario_id]['horas_trabalhadas'] += saida - entrada
         for funcionario_id, dados in horas_trabalhadas_por_funcionario.items():
             funcionario = tabela_funcionarios.get_item(Key={'id': funcionario_id})
@@ -364,3 +399,35 @@ def enviar_email_registros():
     except Exception as e:
         print(f"Erro ao enviar email: {str(e)}")
         return jsonify({'error': str(e)}), 500
+
+@routes.route('/registrar_ponto_manual', methods=['POST'])
+def registrar_ponto_manual():
+    data = request.get_json()
+    funcionario_id = data.get('funcionario_id')
+    data_hora = data.get('data_hora')  # Formato: 'YYYY-MM-DD HH:MM'
+    if not funcionario_id or not data_hora:
+        return jsonify({'mensagem': 'Funcionário e data/hora são obrigatórios'}), 400
+    # Verifica se o funcionário existe
+    response = tabela_funcionarios.get_item(Key={'id': funcionario_id})
+    if 'Item' not in response:
+        return jsonify({'mensagem': 'Funcionário não encontrado'}), 404
+    # Buscar registros do dia para alternar tipo
+    data_dia = data_hora.split(' ')[0]
+    response_registros = tabela_registros.scan(
+        FilterExpression='funcionario_id = :id AND begins_with(data_hora, :dia)',
+        ExpressionAttributeValues={':id': funcionario_id, ':dia': data_dia}
+    )
+    registros_do_dia = sorted(response_registros['Items'], key=lambda x: x['data_hora'])
+    tipo = 'entrada' if not registros_do_dia or registros_do_dia[-1]['tipo'] == 'saída' else 'saída'
+    id_registro = str(uuid.uuid4())
+    # Salva no DynamoDB
+    tabela_registros.put_item(
+        Item={
+            'registro_id': id_registro,
+            'funcionario_id': funcionario_id,
+            'data_hora': data_hora,
+            'tipo': tipo
+        }
+    )
+    return jsonify({'mensagem': f'Ponto manual registrado como {tipo} com sucesso'}), 200
+

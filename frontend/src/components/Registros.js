@@ -27,6 +27,7 @@ import EmailIcon from '@mui/icons-material/Email';
 import FileDownloadIcon from '@mui/icons-material/FileDownload';
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import CloseIcon from '@mui/icons-material/Close';
+import DeleteIcon from '@mui/icons-material/Delete';
 
 function Registros() {
   const [registros, setRegistros] = useState([]);
@@ -179,6 +180,17 @@ function Registros() {
     }
   };
 
+  const handleDeleteRegistro = async (registroId) => {
+    if (!window.confirm('Tem certeza que deseja deletar este registro?')) return;
+    try {
+      await axios.delete(`http://localhost:5000/registros/${registroId}`);
+      setRegistros((prev) => prev.filter((r) => r.registro_id !== registroId));
+      showSnackbar('Registro deletado com sucesso!', 'success');
+    } catch (err) {
+      showSnackbar('Erro ao deletar registro', 'error');
+    }
+  };
+
   const showSnackbar = (message, severity) => {
     setSnackbarMessage(message);
     setSnackbarSeverity(severity);
@@ -287,23 +299,34 @@ function Registros() {
                   <TableCell sx={{ fontWeight: 'bold' }}>Data</TableCell>
                   <TableCell sx={{ fontWeight: 'bold' }}>Hora</TableCell>
                   <TableCell sx={{ fontWeight: 'bold' }}>Tipo</TableCell>
+                  <TableCell sx={{ fontWeight: 'bold' }}>Ações</TableCell>
                 </TableRow>
               </TableHead>
               <TableBody>
                 {registros.length > 0 ? (
                   registros.map((registro) => {
                     const [data, hora] = registro.data_hora.split(' ');
+                    // Formatar data para DD-MM-AAAA se não estiver
+                    const dataFormatada = data.includes('-') && data.split('-')[0].length === 2 ? data : (() => {
+                      const [yyyy, mm, dd] = data.split('-');
+                      return `${dd}-${mm}-${yyyy}`;
+                    })();
                     return (
                       <TableRow key={registro.registro_id}>
-                        <TableCell>{data}</TableCell>
+                        <TableCell>{dataFormatada}</TableCell>
                         <TableCell>{hora}</TableCell>
                         <TableCell>{registro.tipo}</TableCell>
+                        <TableCell>
+                          <IconButton color="error" onClick={() => handleDeleteRegistro(registro.registro_id)}>
+                            <DeleteIcon />
+                          </IconButton>
+                        </TableCell>
                       </TableRow>
                     );
                   })
                 ) : (
                   <TableRow>
-                    <TableCell colSpan={3} align="center">
+                    <TableCell colSpan={4} align="center">
                       Nenhum registro encontrado
                     </TableCell>
                   </TableRow>

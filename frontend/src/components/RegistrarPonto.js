@@ -1,42 +1,87 @@
-import React, { useRef, useState } from 'react';
-import Webcam from 'react-webcam';
+import React, { useEffect, useState } from 'react';
+import {
+  Box,
+  Button,
+  Paper,
+  TextField,
+  MenuItem,
+  Typography,
+  Snackbar,
+  Alert,
+  Stack,
+} from '@mui/material';
 import axios from 'axios';
-import { Button, Box, Typography, Paper, Modal } from '@mui/material';
 import { useNavigate } from 'react-router-dom';
 
 function RegistrarPonto() {
-  const webcamRef = useRef(null);
-  const [mensagem, setMensagem] = useState('');
-  const [modalOpen, setModalOpen] = useState(false);
+  const [funcionarios, setFuncionarios] = useState([]);
+  const [funcionarioId, setFuncionarioId] = useState('');
+  const [data, setData] = useState('');
+  const [hora, setHora] = useState('');
+  const [loading, setLoading] = useState(true);
+  const [snackbar, setSnackbar] = useState({
+    open: false,
+    message: '',
+    severity: 'info',
+  });
+
   const navigate = useNavigate();
 
-  const registrarPonto = async () => {
-    const foto = webcamRef.current.getScreenshot();
-    const formData = new FormData();
+  const carregarFuncionarios = async () => {
+    setLoading(true);
+    try {
+      const response = await axios.get('http://localhost:5000/funcionarios');
+      setFuncionarios(response.data);
+    } catch (error) {
+      setSnackbar({
+        open: true,
+        message: 'Erro ao carregar funcionários',
+        severity: 'error',
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
 
-    const blob = await fetch(foto).then((res) => res.blob());
-    formData.append('foto', blob, 'registro.jpg');
+  useEffect(() => {
+    carregarFuncionarios();
+  }, []);
+
+  const registrarPontoManual = async () => {
+    if (!funcionarioId || !data || !hora) {
+      setSnackbar({
+        open: true,
+        message: 'Preencha todos os campos!',
+        severity: 'warning',
+      });
+      return;
+    }
 
     try {
-      const response = await axios.post('http://localhost:5000/registrar_ponto', formData, {
-        headers: { 'Content-Type': 'multipart/form-data' },
+      const response = await axios.post('http://localhost:5000/registrar_ponto_manual', {
+        funcionario_id: funcionarioId,
+        data_hora: `${data} ${hora}`,
       });
 
-      const { funcionario, hora, tipo } = response.data;
-
-      // Atualizar mensagem e abrir o modal
-      setMensagem(`✅ Ponto Registrado! (${hora})\n${tipo.toUpperCase()} registrada para ${funcionario}.`);
-      setModalOpen(true);
-
-      // Fechar o modal automaticamente após 5 segundos
-      setTimeout(() => setModalOpen(false), 5000);
+      setSnackbar({
+        open: true,
+        message: response.data.mensagem || 'Ponto registrado com sucesso!',
+        severity: 'success',
+      });
+      setFuncionarioId('');
+      setData('');
+      setHora('');
     } catch (error) {
-      setMensagem('❌ Erro: ' + (error.response?.data?.error || 'Falha no registro'));
-      setModalOpen(true);
-
-      // Fechar o modal automaticamente após 5 segundos
-      setTimeout(() => setModalOpen(false), 5000);
+      setSnackbar({
+        open: true,
+        message: 'Erro ao registrar ponto manual',
+        severity: 'error',
+      });
     }
+  };
+
+  const handleCloseSnackbar = () => {
+    setSnackbar((prev) => ({ ...prev, open: false }));
   };
 
   return (
@@ -51,105 +96,78 @@ function RegistrarPonto() {
         padding: '20px',
       }}
     >
-      <Paper elevation={3} sx={{ p: 3, maxWidth: '600px', width: '100%' }}>
+      <Paper elevation={3} sx={{ p: 4, maxWidth: '600px', width: '100%' }}>
         <Typography
           variant="h5"
-          sx={{
-            fontWeight: 'bold',
-            color: '#004d40',
-            textAlign: 'center',
-            marginBottom: '20px',
-          }}
+          sx={{ fontWeight: 'bold', color: '#004d40', textAlign: 'center', marginBottom: 3 }}
         >
-          Registrar Ponto
+          Registro Manual de Ponto
         </Typography>
 
-        <Box
-          sx={{
-            border: '4px solid #1976d2',
-            borderRadius: '12px',
-            padding: '8px',
-            boxShadow: '0 4px 20px rgba(0, 0, 0, 0.15)',
-            backgroundColor: '#f5f5f5',
-            marginBottom: '20px',
-          }}
-        >
-          <Webcam
-            audio={false}
-            ref={webcamRef}
-            screenshotFormat="image/jpeg"
-            width="100%"
-            style={{
-              borderRadius: '8px',
-              display: 'block',
-              objectFit: 'cover',
-            }}
+        <Stack spacing={2}>
+          <TextField
+            select
+            label="Funcionário"
+            value={funcionarioId}
+            onChange={(e) => setFuncionarioId(e.target.value)}
+            fullWidth
+            disabled={loading || funcionarios.length === 0}
+          >
+            {funcionarios.map((func) => (
+              <MenuItem key={func.id} value={func.id}>
+                {func.nome}
+              </MenuItem>
+            ))}
+          </TextField>
+
+          <TextField
+            label="Data"
+            type="date"
+            InputLabelProps={{ shrink: true }}
+            value={data}
+            onChange={(e) => setData(e.target.value)}
+            fullWidth
           />
-        </Box>
 
-        <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
-          <Button
-            variant="contained"
-            onClick={registrarPonto}
-            sx={{
-              background: 'linear-gradient(135deg, #4fc3f7, #0288d1)',
-              color: '#fff',
-              '&:hover': {
-                background: 'linear-gradient(135deg, #0288d1, #01579b)',
-              },
-            }}
-          >
-            Registrar Ponto
-          </Button>
+          <TextField
+            label="Hora"
+            type="time"
+            InputLabelProps={{ shrink: true }}
+            value={hora}
+            onChange={(e) => setHora(e.target.value)}
+            fullWidth
+          />
 
-          <Button
-            variant="outlined"
-            onClick={() => navigate('/')}
-            sx={{
-              padding: '10px 20px',
-              fontSize: '1rem',
-              borderRadius: '8px',
-            }}
-          >
-            Voltar
-          </Button>
-        </Box>
+          <Stack direction="row" spacing={2} justifyContent="space-between">
+            <Button
+              variant="contained"
+              onClick={registrarPontoManual}
+              sx={{
+                background: 'linear-gradient(135deg, #4fc3f7, #0288d1)',
+                color: '#fff',
+                '&:hover': {
+                  background: 'linear-gradient(135deg, #0288d1, #01579b)',
+                },
+              }}
+            >
+              Registrar Manualmente
+            </Button>
+            <Button
+              variant="outlined"
+              onClick={() => navigate('/')}
+              sx={{ padding: '10px 20px', fontSize: '1rem', borderRadius: '8px' }}
+            >
+              Voltar
+            </Button>
+          </Stack>
+        </Stack>
       </Paper>
 
-      {/* Modal para exibir a mensagem */}
-      <Modal
-        open={modalOpen}
-        onClose={() => setModalOpen(false)}
-        sx={{
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          backdropFilter: 'blur(5px)', // Escurece o fundo
-        }}
-      >
-        <Box
-          sx={{
-            backgroundColor: 'white',
-            padding: '20px',
-            borderRadius: '12px',
-            boxShadow: '0 4px 20px rgba(0, 0, 0, 0.25)',
-            textAlign: 'center',
-            maxWidth: '400px',
-            width: '90%',
-          }}
-        >
-          <Typography
-            variant="h6"
-            sx={{
-              fontWeight: 'bold',
-              marginBottom: '10px',
-              color: '#4caf50', // Verde para sucesso
-            }}
-          >
-            {mensagem}
-          </Typography>
-        </Box>
-      </Modal>
+      <Snackbar open={snackbar.open} autoHideDuration={5000} onClose={handleCloseSnackbar}>
+        <Alert onClose={handleCloseSnackbar} severity={snackbar.severity} sx={{ width: '100%' }}>
+          {snackbar.message}
+        </Alert>
+      </Snackbar>
     </Box>
   );
 }
