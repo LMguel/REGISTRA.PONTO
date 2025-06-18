@@ -9,6 +9,10 @@ from aws_utils import (
 
 routes = Blueprint('routes', __name__)
 
+@routes.route('/')
+def health():
+    return 'OK', 200
+
 @routes.route('/registros/<registro_id>', methods=['DELETE'])
 def deletar_registro(registro_id):
     try:
