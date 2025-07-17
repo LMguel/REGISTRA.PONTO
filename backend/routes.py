@@ -3,11 +3,33 @@ from datetime import datetime, timedelta
 import uuid
 import tempfile
 import os
+import boto3
 from aws_utils import (
     tabela_funcionarios, tabela_registros, enviar_s3, reconhecer_funcionario, rekognition, BUCKET, COLLECTION, REGIAO
 )
+from functools import wraps
+from auth import verify_token
+
+s3 = boto3.client('s3', region_name=REGIAO)
 
 routes = Blueprint('routes', __name__)
+
+def token_required(f):
+    @wraps(f)
+    def decorated(*args, **kwargs):
+        token = None
+        # O token pode vir no header Authorization: Bearer <token>
+        if 'Authorization' in request.headers:
+            auth_header = request.headers['Authorization']
+            if auth_header.startswith('Bearer '):
+                token = auth_header.split(' ')[1]
+        if not token:
+            return jsonify({'error': 'Token ausente'}), 401
+        payload = verify_token(token)
+        if not payload:
+            return jsonify({'error': 'Token inválido'}), 401
+        return f(payload, *args, **kwargs)
+    return decorated
 
 @routes.route('/')
 def health():
@@ -434,4 +456,16 @@ def registrar_ponto_manual():
         }
     )
     return jsonify({'mensagem': f'Ponto manual registrado como {tipo} com sucesso'}), 200
+
+@routes.route('/registros_protegido', methods=['GET'])
+@token_required
+def listar_registros_protegido(payload):
+    company_id = payload.get("company_id")
+    # Exemplo de implementação simples para buscar registros por company_id
+    response = tabela_registros.scan(
+        FilterExpression='company_id = :cid',
+        ExpressionAttributeValues={':cid': company_id}
+    )
+    registros = response.get('Items', [])
+    return jsonify(registros)
 
