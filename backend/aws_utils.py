@@ -8,12 +8,14 @@ BUCKET = "ponto-eletronico-fotos-us"
 COLLECTION = "FuncionariosCollection"
 TABELA_FUNC = "Funcionarios"
 TABELA_REG = "RegistrosPonto"
+TABELA_USUARIO_EMPRESA = "UsuarioEmpresa"
 
 s3 = boto3.client('s3', region_name=REGIAO)
 rekognition = boto3.client('rekognition', region_name=REGIAO)
 dynamodb = boto3.resource('dynamodb', region_name=REGIAO)
 tabela_funcionarios = dynamodb.Table(TABELA_FUNC)
 tabela_registros = dynamodb.Table(TABELA_REG)
+tabela_usuarioempresa = dynamodb.Table(TABELA_USUARIO_EMPRESA)
 
 def enviar_s3(caminho, nome_arquivo):
     s3.upload_file(caminho, BUCKET, nome_arquivo)
