@@ -2,11 +2,11 @@ import React, { useState } from 'react';
 import { TextField, Button, Paper, Typography, Box, Snackbar, Alert } from '@mui/material';
 import axios from 'axios';
 import { useNavigate } from 'react-router-dom';
-import HomeIcon from '@mui/icons-material/Home';
 
 
 function Login() {
   const [usuarioId, setUsuarioId] = useState('');
+  const [empresaId, setEmpresaId] = useState('');
   const [senha, setSenha] = useState('');
   const [loading, setLoading] = useState(false);
   const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'info' });
@@ -17,6 +17,7 @@ function Login() {
     try {
       const response = await axios.post('http://localhost:5000/login', {
         usuario_id: usuarioId,
+        empresa_id: empresaId,
         senha: senha
       });
       const { token } = response.data;
@@ -63,6 +64,14 @@ function Login() {
           sx={{ mb: 2 }}
         />
         <TextField
+          label="Empresa ID"
+          type="text"
+          fullWidth
+          value={empresaId}
+          onChange={(e) => setEmpresaId(e.target.value)}
+          sx={{ mb: 2 }}
+        />
+        <TextField
           label="Senha"
           type="password"
           fullWidth
@@ -74,19 +83,10 @@ function Login() {
           variant="contained"
           fullWidth
           onClick={handleLogin}
-          disabled={loading || !usuarioId || !senha}
+          disabled={loading || !usuarioId || !empresaId || !senha}
           sx={{ backgroundColor: '#0288d1', color: '#fff', borderRadius: '8px', fontWeight: 500, py: 1 }}
         >
           {loading ? 'Entrando...' : 'Entrar'}
-        </Button>
-        <Button
-          variant="outlined"
-          fullWidth
-          startIcon={<HomeIcon />}
-          sx={{ mt: 2, borderRadius: '8px' }}
-          onClick={() => navigate('/home')}
-        >
-          Ir para Home
         </Button>
         <Button
           variant="text"

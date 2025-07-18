@@ -120,10 +120,10 @@ def registrar_ponto():
 @token_required
 def listar_funcionarios(payload):
     try:
-        empresa_nome = payload.get('empresa_nome')
+        empresa_id = payload.get('empresa_id')
         response = tabela_funcionarios.scan(
-            FilterExpression='empresa_nome = :empresa',
-            ExpressionAttributeValues={':empresa': empresa_nome}
+            FilterExpression='empresa_id = :empresa_id',
+            ExpressionAttributeValues={':empresa_id': empresa_id}
         )
         return jsonify(response['Items'])
     except Exception as e:
@@ -274,6 +274,7 @@ def cadastrar_funcionario(payload):
             return jsonify({"error": "Nenhum rosto detectado na imagem."}), 400
         face_id = rekognition_response['FaceRecords'][0]['Face']['FaceId']
         empresa_nome = payload.get('empresa_nome')
+        empresa_id = payload.get('empresa_id')
         tabela_funcionarios.put_item(Item={
             'id': funcionario_id,
             'nome': nome,
@@ -281,6 +282,7 @@ def cadastrar_funcionario(payload):
             'foto_url': foto_url,
             'face_id': face_id,
             'empresa_nome': empresa_nome,
+            'empresa_id': empresa_id,
             'data_cadastro': datetime.now().strftime('%Y-%m-%d')
         })
         os.remove(temp_path)
@@ -303,12 +305,12 @@ def listar_registros(payload):
     nome_funcionario = request.args.get('nome')
     funcionario_id = request.args.get('funcionario_id')
     try:
-        empresa_nome = payload.get('empresa_nome')
+        empresa_id = payload.get('empresa_id')
         funcionarios_filtrados = []
         # Buscar apenas funcionários da empresa
         filtro_func = {
-            'FilterExpression': 'empresa_nome = :empresa',
-            'ExpressionAttributeValues': {':empresa': empresa_nome}
+            'FilterExpression': 'empresa_id = :empresa_id',
+            'ExpressionAttributeValues': {':empresa_id': empresa_id}
         }
         if nome_funcionario:
             filtro_func['FilterExpression'] += ' AND contains(nome, :nome)'
@@ -325,8 +327,8 @@ def listar_registros(payload):
         expression_attributes = {}
         conditions = []
         # Sempre filtra por empresa
-        conditions.append('empresa_nome = :empresa')
-        expression_attributes[':empresa'] = empresa_nome
+        conditions.append('empresa_id = :empresa_id')
+        expression_attributes[':empresa_id'] = empresa_id
         if data_inicio and data_fim:
             conditions.append('data_hora BETWEEN :inicio AND :fim')
             expression_attributes[':inicio'] = f"{data_inicio} 00:00:00"
@@ -399,10 +401,10 @@ def listar_registros(payload):
 def buscar_nomes(payload):
     nome_parcial = request.args.get('nome', '')
     try:
-        empresa_nome = payload.get('empresa_nome')
+        empresa_id = payload.get('empresa_id')
         response = tabela_funcionarios.scan(
-            FilterExpression='empresa_nome = :empresa AND contains(nome, :nome)',
-            ExpressionAttributeValues={':empresa': empresa_nome, ':nome': nome_parcial}
+            FilterExpression='empresa_id = :empresa_id AND contains(nome, :nome)',
+            ExpressionAttributeValues={':empresa_id': empresa_id, ':nome': nome_parcial}
         )
         nomes = [funcionario['nome'] for funcionario in response['Items']]
         return jsonify(nomes)
@@ -463,9 +465,10 @@ def registrar_ponto_manual(payload):
         return jsonify({'mensagem': 'Funcionário, data/hora e tipo são obrigatórios'}), 400
     # Verifica se o funcionário existe e se pertence à empresa do usuário
     empresa_nome = payload.get('empresa_nome')
+    empresa_id = payload.get('empresa_id')
     response = tabela_funcionarios.get_item(Key={'id': funcionario_id})
     funcionario = response.get('Item')
-    if not funcionario or funcionario.get('empresa_nome') != empresa_nome:
+    if not funcionario or funcionario.get('empresa_nome') != empresa_nome or funcionario.get('empresa_id') != empresa_id:
         return jsonify({'mensagem': 'Funcionário não encontrado'}), 404
     id_registro = str(uuid.uuid4())
     # Salva no DynamoDB
@@ -475,7 +478,8 @@ def registrar_ponto_manual(payload):
             'funcionario_id': funcionario_id,
             'data_hora': data_hora,
             'tipo': tipo,
-            'empresa_nome': empresa_nome
+            'empresa_nome': empresa_nome,
+            'empresa_id': empresa_id
         }
     )
     return jsonify({'mensagem': f'Ponto manual registrado como {tipo} com sucesso'}), 200
@@ -495,6 +499,9 @@ def listar_registros_protegido(payload):
 @routes.route('/login', methods=['POST'])
 def login():
     from auth import verify_password
+    import datetime
+    import jwt
+    from flask import current_app
     data = request.json
     usuario_id = data.get('usuario_id')
     senha = data.get('senha')
@@ -506,17 +513,37 @@ def login():
     if not usuario or not verify_password(senha, usuario['senha_hash']):
         return jsonify({'error': 'Credenciais inválidas'}), 401
 
-    # Gerar token com info da empresa
-    import datetime
+    # Gerar token com info da empresa, incluindo empresa_id
     token = jwt.encode({
         'usuario_id': usuario['usuario_id'],
         'empresa_nome': usuario['empresa_nome'],
+        'empresa_id': usuario.get('empresa_id'),
         'exp': datetime.datetime.utcnow() + datetime.timedelta(hours=12)
     }, current_app.config['SECRET_KEY'], algorithm="HS256")
-
     return jsonify({'token': token})
 
 @routes.route('/cadastrar_usuario_empresa', methods=['POST'])
+def cadastrar_usuario_empresa():
+    from auth import hash_password
+    data = request.json
+    usuario_id = data.get('usuario_id')
+    email = data.get('email')
+    empresa_nome = data.get('empresa_nome')
+    senha = data.get('senha')
+    if not all([usuario_id, email, empresa_nome, senha]):
+        return jsonify({'error': 'Campos obrigatórios ausentes'}), 400
+    senha_hash = hash_password(senha)
+    from datetime import datetime
+    empresa_id = str(uuid.uuid4())
+    tabela_usuarioempresa.put_item(Item={
+        'usuario_id': usuario_id,
+        'email': email,
+        'empresa_nome': empresa_nome,
+        'empresa_id': empresa_id,
+        'senha_hash': senha_hash,
+        'data_criacao': datetime.now().isoformat()
+    })
+    return jsonify({'success': True, 'usuario_id': usuario_id, 'empresa_id': empresa_id}), 201
 def cadastrar_usuario_empresa():
     from auth import hash_password
     data = request.json

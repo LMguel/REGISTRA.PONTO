@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
-import { Button, Box, Typography, Paper } from '@mui/material';
+import { Button, Box, Typography, Paper, IconButton } from '@mui/material';
 import { useNavigate } from 'react-router-dom';
+import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import logo from '../imagem/logo.png';
 
 function Home() {
@@ -30,8 +31,29 @@ function Home() {
         justifyContent: 'center',
         alignItems: 'center',
         padding: '20px',
+        position: 'relative',
       }}
     >
+      {/* Botão de Login no canto superior esquerdo */}
+      <IconButton
+        onClick={() => navigate('/')}
+        sx={{
+          position: 'absolute',
+          top: 24,
+          left: 24,
+          backgroundColor: '#fff',
+          border: '2px solid #0288d1',
+          color: '#0288d1',
+          zIndex: 10,
+          '&:hover': {
+            backgroundColor: '#e3f2fd',
+          },
+        }}
+        aria-label="Voltar para Login"
+      >
+        <ArrowBackIcon />
+      </IconButton>
+
       <Paper
         elevation={6}
         sx={{
