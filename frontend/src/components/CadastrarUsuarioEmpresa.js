@@ -4,31 +4,32 @@ import axios from 'axios';
 import { useNavigate } from 'react-router-dom';
 import HomeIcon from '@mui/icons-material/Home';
 
-
-function Login() {
+function CadastrarUsuarioEmpresa() {
   const [usuarioId, setUsuarioId] = useState('');
+  const [email, setEmail] = useState('');
+  const [empresaNome, setEmpresaNome] = useState('');
   const [senha, setSenha] = useState('');
   const [loading, setLoading] = useState(false);
   const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'info' });
   const navigate = useNavigate();
 
-  const handleLogin = async () => {
+  const handleCadastro = async () => {
     setLoading(true);
     try {
-      const response = await axios.post('http://localhost:5000/login', {
+      const response = await axios.post('http://localhost:5000/cadastrar_usuario_empresa', {
         usuario_id: usuarioId,
-        senha: senha
+        email,
+        empresa_nome: empresaNome,
+        senha
       });
-      const { token } = response.data;
-      if (token) {
-        localStorage.setItem('access_token', token);
-        setSnackbar({ open: true, message: 'Login realizado com sucesso!', severity: 'success' });
-        setTimeout(() => navigate('/home'), 1000);
+      if (response.data.success) {
+        setSnackbar({ open: true, message: 'Usuário cadastrado com sucesso!', severity: 'success' });
+        setTimeout(() => navigate('/'), 1200);
       } else {
-        setSnackbar({ open: true, message: 'Credenciais inválidas', severity: 'error' });
+        setSnackbar({ open: true, message: response.data.error || 'Erro ao cadastrar', severity: 'error' });
       }
     } catch (error) {
-      setSnackbar({ open: true, message: 'Erro ao fazer login', severity: 'error' });
+      setSnackbar({ open: true, message: error.response?.data?.error || 'Erro ao cadastrar', severity: 'error' });
     } finally {
       setLoading(false);
     }
@@ -52,7 +53,7 @@ function Login() {
     >
       <Paper elevation={3} sx={{ p: 4, maxWidth: '400px', width: '100%' }}>
         <Typography variant="h5" sx={{ fontWeight: 'bold', color: '#0288d1', textAlign: 'center', mb: 3 }}>
-          Login
+          Cadastrar Usuário Empresa
         </Typography>
         <TextField
           label="Usuário ID"
@@ -60,6 +61,22 @@ function Login() {
           fullWidth
           value={usuarioId}
           onChange={(e) => setUsuarioId(e.target.value)}
+          sx={{ mb: 2 }}
+        />
+        <TextField
+          label="Email"
+          type="email"
+          fullWidth
+          value={email}
+          onChange={(e) => setEmail(e.target.value)}
+          sx={{ mb: 2 }}
+        />
+        <TextField
+          label="Empresa"
+          type="text"
+          fullWidth
+          value={empresaNome}
+          onChange={(e) => setEmpresaNome(e.target.value)}
           sx={{ mb: 2 }}
         />
         <TextField
@@ -73,28 +90,20 @@ function Login() {
         <Button
           variant="contained"
           fullWidth
-          onClick={handleLogin}
-          disabled={loading || !usuarioId || !senha}
+          onClick={handleCadastro}
+          disabled={loading || !usuarioId || !email || !empresaNome || !senha}
           sx={{ backgroundColor: '#0288d1', color: '#fff', borderRadius: '8px', fontWeight: 500, py: 1 }}
         >
-          {loading ? 'Entrando...' : 'Entrar'}
+          {loading ? 'Cadastrando...' : 'Cadastrar'}
         </Button>
         <Button
           variant="outlined"
           fullWidth
           startIcon={<HomeIcon />}
           sx={{ mt: 2, borderRadius: '8px' }}
-          onClick={() => navigate('/home')}
+          onClick={() => navigate('/')}
         >
-          Ir para Home
-        </Button>
-        <Button
-          variant="text"
-          fullWidth
-          sx={{ mt: 1, borderRadius: '8px', color: '#0288d1', fontWeight: 500 }}
-          onClick={() => navigate('/cadastrar-usuario')}
-        >
-          Cadastrar Usuário Empresa
+          Voltar para Login
         </Button>
       </Paper>
       <Snackbar open={snackbar.open} autoHideDuration={5000} onClose={handleCloseSnackbar}>
@@ -106,4 +115,4 @@ function Login() {
   );
 }
 
-export default Login;
+export default CadastrarUsuarioEmpresa;

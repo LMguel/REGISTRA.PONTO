@@ -33,7 +33,12 @@ function ListarFuncionarios() {
   const carregarFuncionarios = async () => {
     setLoading(true);
     try {
-      const response = await axios.get('http://localhost:5000/funcionarios');
+      const token = localStorage.getItem('access_token');
+      const response = await axios.get('http://localhost:5000/funcionarios', {
+        headers: {
+          Authorization: `Bearer ${token}`
+        }
+      });
       setFuncionarios(response.data);
     } catch (error) {
       setSnackbar({
@@ -117,7 +122,7 @@ function ListarFuncionarios() {
         </Button>
         <Button
           variant="outlined"
-          onClick={() => navigate('/')}
+          onClick={() => navigate('/home')}
           sx={{
             padding: '10px 20px',
             fontSize: '1rem',

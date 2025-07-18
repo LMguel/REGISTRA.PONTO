@@ -64,7 +64,12 @@ function Registros() {
       }
 
       // Buscar registros
-      const registrosResponse = await axios.get(`http://localhost:5000/registros?${params.toString()}`);
+      const token = localStorage.getItem('access_token');
+      const registrosResponse = await axios.get(`http://localhost:5000/registros?${params.toString()}`, {
+        headers: {
+          Authorization: `Bearer ${token}`
+        }
+      });
       setRegistros(registrosResponse.data);
     } catch (err) {
       console.error('Erro ao buscar registros:', err);

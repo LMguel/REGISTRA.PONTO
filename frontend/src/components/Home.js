@@ -1,10 +1,25 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { Button, Box, Typography, Paper } from '@mui/material';
 import { useNavigate } from 'react-router-dom';
 import logo from '../imagem/logo.png';
 
 function Home() {
   const navigate = useNavigate();
+  const [empresaNome, setEmpresaNome] = useState('');
+
+  useEffect(() => {
+    // Pega o token do localStorage e decodifica o nome da empresa
+    const token = localStorage.getItem('access_token');
+    if (token) {
+      try {
+        // Decodifica o payload do JWT (base64)
+        const payload = JSON.parse(atob(token.split('.')[1]));
+        setEmpresaNome(payload.empresa_nome || '');
+      } catch (e) {
+        setEmpresaNome('');
+      }
+    }
+  }, []);
 
   return (
     <Box
@@ -52,7 +67,7 @@ function Home() {
             fontFamily: "'Poppins', sans-serif",
           }}
         >
-          REGISTRA PONTO
+          {empresaNome || 'REGISTRA PONTO'}
         </Typography>
 
         {/* Subtítulo */}

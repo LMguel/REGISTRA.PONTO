@@ -35,6 +35,12 @@ function ConsultarRegistros() {
   const navigate = useNavigate();
 
   const buscarRegistros = React.useCallback(async () => {
+    // Validação de datas
+    if (dataInicio && dataFim && dataInicio > dataFim) {
+      setError('A data de início não pode ser maior que a data de fim.');
+      setRegistros([]);
+      return;
+    }
     setLoading(true);
     setError(null);
 
@@ -44,7 +50,12 @@ function ConsultarRegistros() {
       if (dataFim) params.append('fim', dataFim);
       if (nome) params.append('nome', nome);
 
-      const response = await axios.get(`http://localhost:5000/registros?${params.toString()}`);
+      const token = localStorage.getItem('access_token');
+      const response = await axios.get(`http://localhost:5000/registros?${params.toString()}`, {
+        headers: {
+          Authorization: `Bearer ${token}`
+        }
+      });
       setRegistros(response.data);
     } catch (err) {
       console.error('Erro ao buscar registros:', err);
@@ -56,7 +67,12 @@ function ConsultarRegistros() {
 
   const buscarNomes = async (nomeParcial) => {
     try {
-      const response = await axios.get(`http://localhost:5000/funcionarios/nome?nome=${nomeParcial}`);
+      const token = localStorage.getItem('access_token');
+      const response = await axios.get(`http://localhost:5000/funcionarios/nome?nome=${nomeParcial}`, {
+        headers: {
+          Authorization: `Bearer ${token}`
+        }
+      });
       setOpcoesNomes(response.data);
     } catch (err) {
       console.error('Erro ao buscar nomes:', err);
@@ -141,6 +157,7 @@ function ConsultarRegistros() {
       }}
     >
       <Paper elevation={3} sx={{ p: 3, maxWidth: '90%', width: '100%' }}>
+        
         <Typography
           variant="h5"
           sx={{
@@ -153,6 +170,7 @@ function ConsultarRegistros() {
           Consulta de Registros
         </Typography>
 
+        
         <Box sx={{ display: 'flex', justifyContent: 'flex-end', gap: 2, mb: 3 }}>
           <Button
             variant="contained"
@@ -165,6 +183,13 @@ function ConsultarRegistros() {
             }}
           >
             Exportar Excel
+          </Button>
+          <Button
+            variant="outlined"
+            onClick={() => navigate('/home')}
+            sx={{ padding: '10px 20px', fontSize: '1rem', borderRadius: '8px' }}
+          >
+            Voltar
           </Button>
         </Box>
 
@@ -194,6 +219,7 @@ function ConsultarRegistros() {
             value={dataInicio}
             onChange={(e) => setDataInicio(e.target.value)}
             sx={{ minWidth: '180px' }}
+            inputProps={{ max: dataFim || undefined }}
           />
           <TextField
             label="Data Fim"
@@ -202,6 +228,7 @@ function ConsultarRegistros() {
             value={dataFim}
             onChange={(e) => setDataFim(e.target.value)}
             sx={{ minWidth: '180px' }}
+            inputProps={{ min: dataInicio || undefined }}
           />
           <Button 
             variant="contained" 

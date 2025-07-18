@@ -19,6 +19,7 @@ function RegistrarPonto() {
   const [data, setData] = useState('');
   const [hora, setHora] = useState('');
   const [loading, setLoading] = useState(true);
+  const [tipo, setTipo] = useState('entrada');
   const [snackbar, setSnackbar] = useState({
     open: false,
     message: '',
@@ -30,7 +31,12 @@ function RegistrarPonto() {
   const carregarFuncionarios = async () => {
     setLoading(true);
     try {
-      const response = await axios.get('http://localhost:5000/funcionarios');
+      const token = localStorage.getItem('access_token');
+      const response = await axios.get('http://localhost:5000/funcionarios', {
+        headers: {
+          Authorization: `Bearer ${token}`
+        }
+      });
       setFuncionarios(response.data);
     } catch (error) {
       setSnackbar({
@@ -48,7 +54,7 @@ function RegistrarPonto() {
   }, []);
 
   const registrarPontoManual = async () => {
-    if (!funcionarioId || !data || !hora) {
+    if (!funcionarioId || !data || !hora || !tipo) {
       setSnackbar({
         open: true,
         message: 'Preencha todos os campos!',
@@ -58,9 +64,15 @@ function RegistrarPonto() {
     }
 
     try {
+      const token = localStorage.getItem('access_token');
       const response = await axios.post('http://localhost:5000/registrar_ponto_manual', {
         funcionario_id: funcionarioId,
         data_hora: `${data} ${hora}`,
+        tipo: tipo
+      }, {
+        headers: {
+          Authorization: `Bearer ${token}`
+        }
       });
 
       setSnackbar({
@@ -71,6 +83,7 @@ function RegistrarPonto() {
       setFuncionarioId('');
       setData('');
       setHora('');
+      setTipo('entrada');
     } catch (error) {
       setSnackbar({
         open: true,
@@ -105,6 +118,7 @@ function RegistrarPonto() {
         </Typography>
 
         <Stack spacing={2}>
+
           <TextField
             select
             label="Funcionário"
@@ -118,6 +132,17 @@ function RegistrarPonto() {
                 {func.nome}
               </MenuItem>
             ))}
+          </TextField>
+
+          <TextField
+            select
+            label="Tipo"
+            value={tipo}
+            onChange={(e) => setTipo(e.target.value)}
+            fullWidth
+          >
+            <MenuItem value="entrada">Entrada</MenuItem>
+            <MenuItem value="saída">Saída</MenuItem>
           </TextField>
 
           <TextField
@@ -154,7 +179,7 @@ function RegistrarPonto() {
             </Button>
             <Button
               variant="outlined"
-              onClick={() => navigate('/')}
+              onClick={() => navigate('/home')}
               sx={{ padding: '10px 20px', fontSize: '1rem', borderRadius: '8px' }}
             >
               Voltar

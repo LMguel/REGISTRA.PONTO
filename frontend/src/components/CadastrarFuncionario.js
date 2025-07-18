@@ -44,8 +44,12 @@ function CadastrarFuncionario() {
     formData.append('cargo', cargo);
     formData.append('foto', foto, foto.name);
     try {
+      const token = localStorage.getItem('access_token');
       await axios.post('http://localhost:5000/cadastrar_funcionario', formData, {
-        headers: { 'Content-Type': 'multipart/form-data' },
+        headers: {
+          'Content-Type': 'multipart/form-data',
+          'Authorization': `Bearer ${token}`
+        },
       });
       setMensagem(`${nome} cadastrado com sucesso!`);
       setModalOpen(true);
