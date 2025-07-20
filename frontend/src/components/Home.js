@@ -26,7 +26,7 @@ function Home() {
     <Box
       sx={{
         minHeight: '100vh',
-        backgroundColor: '#f4f6f8',
+        background: 'linear-gradient(135deg, #e0f7fa, #80deea)',
         display: 'flex',
         justifyContent: 'center',
         alignItems: 'center',
@@ -62,7 +62,9 @@ function Home() {
           maxWidth: '600px',
           width: '100%',
           textAlign: 'center',
-          backgroundColor: '#ffffff',
+          background: '#fff',
+          border: '2px solid #0288d1',
+          boxShadow: '0 4px 20px rgba(2,136,209,0.10)',
         }}
       >
         {/* Logo */}

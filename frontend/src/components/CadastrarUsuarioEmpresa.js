@@ -8,7 +8,6 @@ function CadastrarUsuarioEmpresa() {
   const [usuarioId, setUsuarioId] = useState('');
   const [email, setEmail] = useState('');
   const [empresaNome, setEmpresaNome] = useState('');
-  const [empresaId, setEmpresaId] = useState('');
   const [senha, setSenha] = useState('');
   const [loading, setLoading] = useState(false);
   const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'info' });
@@ -21,7 +20,6 @@ function CadastrarUsuarioEmpresa() {
         usuario_id: usuarioId,
         email,
         empresa_nome: empresaNome,
-        empresa_id: empresaId,
         senha
       });
       if (response.data.success) {
@@ -53,7 +51,7 @@ function CadastrarUsuarioEmpresa() {
         padding: '20px',
       }}
     >
-      <Paper elevation={3} sx={{ p: 4, maxWidth: '400px', width: '100%' }}>
+      <Paper elevation={6} sx={{ p: 4, maxWidth: 400, width: '100%', borderRadius: '16px', border: '2px solid #0288d1', background: '#fff', boxShadow: '0 4px 20px rgba(2,136,209,0.10)' }}>
         <Typography variant="h5" sx={{ fontWeight: 'bold', color: '#0288d1', textAlign: 'center', mb: 3 }}>
           Cadastrar Usuário Empresa
         </Typography>
@@ -82,14 +80,6 @@ function CadastrarUsuarioEmpresa() {
           sx={{ mb: 2 }}
         />
         <TextField
-          label="Empresa ID"
-          type="text"
-          fullWidth
-          value={empresaId}
-          onChange={(e) => setEmpresaId(e.target.value)}
-          sx={{ mb: 2 }}
-        />
-        <TextField
           label="Senha"
           type="password"
           fullWidth
@@ -101,7 +91,7 @@ function CadastrarUsuarioEmpresa() {
           variant="contained"
           fullWidth
           onClick={handleCadastro}
-          disabled={loading || !usuarioId || !email || !empresaNome || !empresaId || !senha}
+          disabled={loading || !usuarioId || !email || !empresaNome || !senha}
           sx={{ backgroundColor: '#0288d1', color: '#fff', borderRadius: '8px', fontWeight: 500, py: 1 }}
         >
           {loading ? 'Cadastrando...' : 'Cadastrar'}

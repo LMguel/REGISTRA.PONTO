@@ -75,7 +75,7 @@ function CadastrarFuncionario() {
         padding: '20px',
       }}
     >
-      <Paper elevation={3} sx={{ p: 3, maxWidth: '600px', width: '100%' }}>
+      <Paper elevation={6} sx={{ p: 3, maxWidth: 600, width: '100%', borderRadius: '16px', border: '2px solid #0288d1', background: '#fff', boxShadow: '0 4px 20px rgba(2,136,209,0.10)' }}>
         <Typography
           variant="h5"
           sx={{

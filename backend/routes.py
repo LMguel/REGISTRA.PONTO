@@ -96,12 +96,14 @@ def registrar_ponto():
         # Alternar tipo do registro
         tipo = 'entrada' if not registros_do_dia or registros_do_dia[-1]['tipo'] == 'saída' else 'saída'
 
-        # Registrar no DynamoDB
+        # Registrar no DynamoDB com empresa_id e empresa_nome
         registro = {
             'registro_id': str(uuid.uuid4()),
             'funcionario_id': funcionario_id,
             'data_hora': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
-            'tipo': tipo
+            'tipo': tipo,
+            'empresa_id': funcionario.get('empresa_id'),
+            'empresa_nome': funcionario.get('empresa_nome')
         }
         tabela_registros.put_item(Item=registro)
 
@@ -143,10 +145,24 @@ def obter_funcionario(funcionario_id):
 @routes.route('/funcionarios/<funcionario_id>', methods=['PUT'])
 def atualizar_funcionario(funcionario_id):
     try:
+        # Validação de empresa_id
+        token = None
+        if 'Authorization' in request.headers:
+            auth_header = request.headers['Authorization']
+            if auth_header.startswith('Bearer '):
+                token = auth_header.split(' ')[1]
+        if not token:
+            return jsonify({'error': 'Token ausente'}), 401
+        payload = verify_token(token)
+        if not payload:
+            return jsonify({'error': 'Token inválido'}), 401
+        empresa_id = payload.get('empresa_id')
         response = tabela_funcionarios.get_item(Key={'id': funcionario_id})
         funcionario = response.get('Item')
         if not funcionario:
             return jsonify({'error': 'Funcionário não encontrado'}), 404
+        if funcionario.get('empresa_id') != empresa_id:
+            return jsonify({'error': 'Acesso negado'}), 403
         nome = request.form.get('nome')
         cargo = request.form.get('cargo')
         if not nome or not cargo:
@@ -225,10 +241,24 @@ def atualizar_foto_funcionario(funcionario_id):
 @routes.route('/funcionarios/<funcionario_id>', methods=['DELETE'])
 def excluir_funcionario(funcionario_id):
     try:
+        # Validação de empresa_id
+        token = None
+        if 'Authorization' in request.headers:
+            auth_header = request.headers['Authorization']
+            if auth_header.startswith('Bearer '):
+                token = auth_header.split(' ')[1]
+        if not token:
+            return jsonify({'error': 'Token ausente'}), 401
+        payload = verify_token(token)
+        if not payload:
+            return jsonify({'error': 'Token inválido'}), 401
+        empresa_id = payload.get('empresa_id')
         response = tabela_funcionarios.get_item(Key={'id': funcionario_id})
         funcionario = response.get('Item')
         if not funcionario:
             return jsonify({'error': 'Funcionário não encontrado'}), 404
+        if funcionario.get('empresa_id') != empresa_id:
+            return jsonify({'error': 'Acesso negado'}), 403
         try:
             rekognition_response = rekognition.list_faces(CollectionId=COLLECTION)
             for face in rekognition_response['Faces']:
@@ -525,6 +555,7 @@ def login():
 @routes.route('/cadastrar_usuario_empresa', methods=['POST'])
 def cadastrar_usuario_empresa():
     from auth import hash_password
+    import re
     data = request.json
     usuario_id = data.get('usuario_id')
     email = data.get('email')
@@ -532,6 +563,14 @@ def cadastrar_usuario_empresa():
     senha = data.get('senha')
     if not all([usuario_id, email, empresa_nome, senha]):
         return jsonify({'error': 'Campos obrigatórios ausentes'}), 400
+    # Validação de formato de email
+    email_regex = r'^[\w\.-]+@[\w\.-]+\.\w{2,}$'
+    if not re.match(email_regex, email):
+        return jsonify({'error': 'Email inválido'}), 400
+    # Verifica se usuario_id já existe
+    response = tabela_usuarioempresa.get_item(Key={'usuario_id': usuario_id})
+    if 'Item' in response:
+        return jsonify({'error': 'Usuário já existe com esse usuario_id'}), 400
     senha_hash = hash_password(senha)
     from datetime import datetime
     empresa_id = str(uuid.uuid4())

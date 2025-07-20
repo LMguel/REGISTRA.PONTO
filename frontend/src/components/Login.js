@@ -6,7 +6,6 @@ import { useNavigate } from 'react-router-dom';
 
 function Login() {
   const [usuarioId, setUsuarioId] = useState('');
-  const [empresaId, setEmpresaId] = useState('');
   const [senha, setSenha] = useState('');
   const [loading, setLoading] = useState(false);
   const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'info' });
@@ -17,7 +16,6 @@ function Login() {
     try {
       const response = await axios.post('http://localhost:5000/login', {
         usuario_id: usuarioId,
-        empresa_id: empresaId,
         senha: senha
       });
       const { token } = response.data;
@@ -51,7 +49,7 @@ function Login() {
         padding: '20px',
       }}
     >
-      <Paper elevation={3} sx={{ p: 4, maxWidth: '400px', width: '100%' }}>
+      <Paper elevation={6} sx={{ p: 4, maxWidth: 400, width: '100%', borderRadius: '16px', border: '2px solid #0288d1', background: '#fff', boxShadow: '0 4px 20px rgba(2,136,209,0.10)' }}>
         <Typography variant="h5" sx={{ fontWeight: 'bold', color: '#0288d1', textAlign: 'center', mb: 3 }}>
           Login
         </Typography>
@@ -61,14 +59,6 @@ function Login() {
           fullWidth
           value={usuarioId}
           onChange={(e) => setUsuarioId(e.target.value)}
-          sx={{ mb: 2 }}
-        />
-        <TextField
-          label="Empresa ID"
-          type="text"
-          fullWidth
-          value={empresaId}
-          onChange={(e) => setEmpresaId(e.target.value)}
           sx={{ mb: 2 }}
         />
         <TextField
@@ -83,7 +73,7 @@ function Login() {
           variant="contained"
           fullWidth
           onClick={handleLogin}
-          disabled={loading || !usuarioId || !empresaId || !senha}
+          disabled={loading || !usuarioId || !senha}
           sx={{ backgroundColor: '#0288d1', color: '#fff', borderRadius: '8px', fontWeight: 500, py: 1 }}
         >
           {loading ? 'Entrando...' : 'Entrar'}

@@ -136,7 +136,7 @@ function ListarFuncionarios() {
       {loading ? (
         <CircularProgress sx={{ display: 'block', mx: 'auto', my: 4 }} />
       ) : (
-        <TableContainer component={Paper} sx={{ maxWidth: '90%', marginBottom: '20px' }}>
+        <TableContainer component={Paper} sx={{ maxWidth: '90%', marginBottom: '20px', borderRadius: '16px', border: '2px solid #0288d1', background: '#fff', boxShadow: '0 4px 20px rgba(2,136,209,0.10)' }}>
           <Table>
             <TableHead>
               <TableRow>
@@ -148,7 +148,7 @@ function ListarFuncionarios() {
             </TableHead>
             <TableBody>
               {funcionarios.map((funcionario) => (
-                <TableRow key={funcionario.id}>
+                <TableRow key={funcionario.id} sx={{ background: '#f4f6f8', borderRadius: '8px' }}>
                   <TableCell>
                     <Avatar src={funcionario.foto_url} alt={funcionario.nome} />
                   </TableCell>
@@ -158,13 +158,14 @@ function ListarFuncionarios() {
                     <Button
                       startIcon={<Edit />}
                       onClick={() => navigate(`/editar/${funcionario.id}`)}
+                      sx={{ background: '#0288d1', color: '#fff', borderRadius: '8px', fontWeight: 500, px: 2, mr: 1, '&:hover': { background: '#0277bd' } }}
                     >
                       Editar
                     </Button>
                     <Button
                       startIcon={<Delete />}
                       color="error"
-                      sx={{ ml: 1 }}
+                      sx={{ ml: 1, borderRadius: '8px', fontWeight: 500, px: 2 }}
                       onClick={() => excluirFuncionario(funcionario.id)}
                     >
                       Excluir
