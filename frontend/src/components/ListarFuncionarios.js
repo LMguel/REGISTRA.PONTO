@@ -17,7 +17,7 @@ import {
   Stack,
 } from '@mui/material';
 import { Edit, Delete, Add } from '@mui/icons-material';
-import axios from 'axios';
+import api from '../services/api';
 import { useNavigate } from 'react-router-dom';
 
 function ListarFuncionarios() {
@@ -34,7 +34,7 @@ function ListarFuncionarios() {
     setLoading(true);
     try {
       const token = localStorage.getItem('access_token');
-      const response = await axios.get('http://localhost:5000/funcionarios', {
+      const response = await api.get('funcionarios', {
         headers: {
           Authorization: `Bearer ${token}`
         }
@@ -53,7 +53,7 @@ function ListarFuncionarios() {
 
   const excluirFuncionario = async (id) => {
     try {
-      await axios.delete(`http://localhost:5000/funcionarios/${id}`);
+      await api.delete(`funcionarios/${id}`);
       setSnackbar({
         open: true,
         message: 'Funcionário excluído com sucesso!',

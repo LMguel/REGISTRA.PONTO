@@ -21,7 +21,7 @@ import {
   Snackbar
 } from '@mui/material';
 import { useSearchParams, useNavigate } from 'react-router-dom';
-import axios from 'axios';
+import api from '../services/api';
 import * as XLSX from 'xlsx';
 import EmailIcon from '@mui/icons-material/Email';
 import FileDownloadIcon from '@mui/icons-material/FileDownload';
@@ -59,13 +59,13 @@ function Registros() {
 
       // Buscar nome do funcionário
       if (funcionarioId) {
-        const funcResponse = await axios.get(`http://localhost:5000/funcionarios/${funcionarioId}`);
+        const funcResponse = await api.get(`funcionarios/${funcionarioId}`);
         setFuncionarioNome(funcResponse.data.nome || 'Funcionário Desconhecido');
       }
 
       // Buscar registros
       const token = localStorage.getItem('access_token');
-      const registrosResponse = await axios.get(`http://localhost:5000/registros?${params.toString()}`, {
+      const registrosResponse = await api.get(`registros?${params.toString()}`, {
         headers: {
           Authorization: `Bearer ${token}`
         }
@@ -164,7 +164,7 @@ function Registros() {
 
     setEmailEnviando(true);
     try {
-      await axios.post('http://localhost:5000/enviar-email-registros', {
+      await api.post('enviar-email-registros', {
         funcionario: funcionarioNome,
         funcionario_id: funcionarioId,
         periodo: {
@@ -188,7 +188,7 @@ function Registros() {
   const handleDeleteRegistro = async (registroId) => {
     if (!window.confirm('Tem certeza que deseja deletar este registro?')) return;
     try {
-      await axios.delete(`http://localhost:5000/registros/${registroId}`);
+      await api.delete(`registros/${registroId}`);
       setRegistros((prev) => prev.filter((r) => r.registro_id !== registroId));
       showSnackbar('Registro deletado com sucesso!', 'success');
     } catch (err) {

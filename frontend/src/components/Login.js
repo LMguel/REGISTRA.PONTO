@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { TextField, Button, Paper, Typography, Box, Snackbar, Alert } from '@mui/material';
-import axios from 'axios';
+import api from '../services/api';
 import { useNavigate } from 'react-router-dom';
 
 
@@ -14,7 +14,7 @@ function Login() {
   const handleLogin = async () => {
     setLoading(true);
     try {
-      const response = await axios.post('http://localhost:5000/login', {
+      const response = await api.post('login', {
         usuario_id: usuarioId,
         senha: senha
       });

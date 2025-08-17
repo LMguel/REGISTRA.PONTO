@@ -17,7 +17,7 @@ import {
   Snackbar
 } from '@mui/material';
 import { useNavigate } from 'react-router-dom';
-import axios from 'axios';
+import api from '../services/api';
 import * as XLSX from 'xlsx';
 import FileDownloadIcon from '@mui/icons-material/FileDownload';
 
@@ -51,7 +51,7 @@ function ConsultarRegistros() {
       if (nome) params.append('nome', nome);
 
       const token = localStorage.getItem('access_token');
-      const response = await axios.get(`http://localhost:5000/registros?${params.toString()}`, {
+      const response = await api.get(`registros?${params.toString()}`, {
         headers: {
           Authorization: `Bearer ${token}`
         }
@@ -68,7 +68,7 @@ function ConsultarRegistros() {
   const buscarNomes = async (nomeParcial) => {
     try {
       const token = localStorage.getItem('access_token');
-      const response = await axios.get(`http://localhost:5000/funcionarios/nome?nome=${nomeParcial}`, {
+      const response = await api.get(`funcionarios/nome?nome=${nomeParcial}`, {
         headers: {
           Authorization: `Bearer ${token}`
         }

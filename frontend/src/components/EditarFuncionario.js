@@ -11,7 +11,7 @@ import {
   Alert,
 } from '@mui/material';
 import { PhotoCamera, Save } from '@mui/icons-material';
-import axios from 'axios';
+import api from '../services/api';
 import { useNavigate, useParams } from 'react-router-dom';
 import Webcam from 'react-webcam';
 
@@ -29,7 +29,7 @@ function EditarFuncionario() {
     const carregarFuncionario = async () => {
       setLoading(true);
       try {
-        const response = await axios.get(`http://localhost:5000/funcionarios/${id}`);
+        const response = await api.get(`funcionarios/${id}`);
         setFuncionario(response.data);
       } catch (error) {
         setSnackbar({
@@ -69,7 +69,7 @@ function EditarFuncionario() {
         formData.append('foto', blob, 'nova_foto.jpg'); // Enviar a nova foto
       }
 
-      await axios.put(`http://localhost:5000/funcionarios/${id}`, formData, {
+      await api.put(`funcionarios/${id}`, formData, {
         headers: { 'Content-Type': 'multipart/form-data' },
       });
 

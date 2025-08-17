@@ -10,7 +10,7 @@ import {
   Alert,
   Stack,
 } from '@mui/material';
-import axios from 'axios';
+import api from '../services/api';
 import { useNavigate } from 'react-router-dom';
 
 function RegistrarPonto() {
@@ -32,7 +32,7 @@ function RegistrarPonto() {
     setLoading(true);
     try {
       const token = localStorage.getItem('access_token');
-      const response = await axios.get('http://localhost:5000/funcionarios', {
+      const response = await api.get('funcionarios', {
         headers: {
           Authorization: `Bearer ${token}`
         }
@@ -65,7 +65,7 @@ function RegistrarPonto() {
 
     try {
       const token = localStorage.getItem('access_token');
-      const response = await axios.post('http://localhost:5000/registrar_ponto_manual', {
+      const response = await api.post('registrar_ponto_manual', {
         funcionario_id: funcionarioId,
         data_hora: `${data} ${hora}`,
         tipo: tipo

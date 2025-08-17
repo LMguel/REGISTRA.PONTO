@@ -6,6 +6,9 @@ Globals:
     Timeout: 30
     Runtime: python3.11
     MemorySize: 512
+    Environment:
+      Variables:
+        PYTHONPATH: /var/task/lambda_dependencies
 Resources:
   RegistraApi:
     Type: AWS::Serverless::Api
@@ -20,6 +23,11 @@ Resources:
     Properties:
       CodeUri: FlaskFunction
       Handler: app.lambda_handler
+      Runtime: python3.11
+      Timeout: 30
+      Environment:
+        Variables:
+          PYTHONPATH: /var/task/lambda_dependencies
       Events:
         ApiRoot:
           Type: Api
@@ -42,3 +50,12 @@ Resources:
       - AmazonS3FullAccess
     Metadata:
       SamResourceId: FlaskFunction
+Outputs:
+  ApiUrl:
+    Description: API Gateway endpoint URL
+    Value:
+      Fn::Sub: https://${RegistraApi}.execute-api.${AWS::Region}.amazonaws.com/api/
+  ApiId:
+    Description: API Gateway ID
+    Value:
+      Ref: RegistraApi

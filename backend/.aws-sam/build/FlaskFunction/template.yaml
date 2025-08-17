@@ -7,6 +7,9 @@ Globals:
     Timeout: 30
     Runtime: python3.11
     MemorySize: 512
+    Environment:
+      Variables:
+        PYTHONPATH: /var/task/lambda_dependencies
 
 Resources:
   RegistraApi:
@@ -23,6 +26,11 @@ Resources:
     Properties:
       CodeUri: .
       Handler: app.lambda_handler
+      Runtime: python3.11
+      Timeout: 30
+      Environment:
+        Variables:
+          PYTHONPATH: /var/task/lambda_dependencies
       Events:
         ApiRoot:
           Type: Api
@@ -41,3 +49,11 @@ Resources:
         - AmazonRekognitionFullAccess
         - AmazonDynamoDBFullAccess
         - AmazonS3FullAccess
+
+Outputs:
+  ApiUrl:
+    Description: "API Gateway endpoint URL"
+    Value: !Sub "https://${RegistraApi}.execute-api.${AWS::Region}.amazonaws.com/api/"
+  ApiId:
+    Description: "API Gateway ID"
+    Value: !Ref RegistraApi

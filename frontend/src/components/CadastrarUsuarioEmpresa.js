@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { TextField, Button, Paper, Typography, Box, Snackbar, Alert } from '@mui/material';
-import axios from 'axios';
+import api from '../services/api';
 import { useNavigate } from 'react-router-dom';
 import HomeIcon from '@mui/icons-material/Home';
 
@@ -16,7 +16,7 @@ function CadastrarUsuarioEmpresa() {
   const handleCadastro = async () => {
     setLoading(true);
     try {
-      const response = await axios.post('http://localhost:5000/cadastrar_usuario_empresa', {
+  const response = await api.post('/cadastrar_usuario_empresa', {
         usuario_id: usuarioId,
         email,
         empresa_nome: empresaNome,

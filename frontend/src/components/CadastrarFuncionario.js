@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { TextField, Button, Paper, Typography, Box, Modal } from '@mui/material';
-import axios from 'axios';
+import api from '../services/api';
 import { useNavigate } from 'react-router-dom';
 
 function CadastrarFuncionario() {
@@ -45,7 +45,7 @@ function CadastrarFuncionario() {
     formData.append('foto', foto, foto.name);
     try {
       const token = localStorage.getItem('access_token');
-      await axios.post('http://localhost:5000/cadastrar_funcionario', formData, {
+      await api.post('cadastrar_funcionario', formData, {
         headers: {
           'Content-Type': 'multipart/form-data',
           'Authorization': `Bearer ${token}`

@@ -1,4 +1,5 @@
 from flask import Blueprint, request, jsonify
+from flask_cors import CORS, cross_origin
 from datetime import datetime, timedelta
 import uuid
 import tempfile
@@ -16,6 +17,15 @@ from flask import current_app
 s3 = boto3.client('s3', region_name=REGIAO)
 
 routes = Blueprint('routes', __name__)
+
+# Enable CORS for all routes in this blueprint
+CORS(routes, resources={
+    r"/*": {
+        "origins": ["http://localhost:3000", "https://localhost:3000"],  # Add your frontend URLs
+        "methods": ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+        "allow_headers": ["Content-Type", "Authorization"]
+    }
+})
 
 def token_required(f):
     @wraps(f)
@@ -35,11 +45,28 @@ def token_required(f):
     return decorated
 
 @routes.route('/', methods=['GET', 'OPTIONS'])
+@cross_origin()
 def health():
+    if request.method == 'OPTIONS':
+        # Handle preflight request
+        response = jsonify({'status': 'OK'})
+        response.headers.add('Access-Control-Allow-Origin', '*')
+        response.headers.add('Access-Control-Allow-Headers', 'Content-Type,Authorization')
+        response.headers.add('Access-Control-Allow-Methods', 'GET,PUT,POST,DELETE,OPTIONS')
+        return response
     return 'OK', 200
 
-@routes.route('/registros/<registro_id>', methods=['DELETE'])
+@routes.route('/registros/<registro_id>', methods=['DELETE', 'OPTIONS'])
+@cross_origin()
 def deletar_registro(registro_id):
+    if request.method == 'OPTIONS':
+        # Handle preflight request
+        response = jsonify({'status': 'OK'})
+        response.headers.add('Access-Control-Allow-Origin', '*')
+        response.headers.add('Access-Control-Allow-Headers', 'Content-Type,Authorization')
+        response.headers.add('Access-Control-Allow-Methods', 'DELETE,OPTIONS')
+        return response
+        
     try:
         # Buscar o registro pelo registro_id (scan, pois não é chave primária)
         response = tabela_registros.scan(
@@ -60,47 +87,65 @@ def deletar_registro(registro_id):
         print(f"Erro ao deletar registro: {str(e)}")
         return jsonify({'error': 'Erro ao deletar registro'}), 500
 
-@routes.route('/registrar_ponto', methods=['POST'])
+@routes.route('/registrar_ponto', methods=['POST', 'OPTIONS'])
+@cross_origin()
 def registrar_ponto():
+    if request.method == 'OPTIONS':
+        # Handle preflight request
+        response = jsonify({'status': 'OK'})
+        response.headers.add('Access-Control-Allow-Origin', '*')
+        response.headers.add('Access-Control-Allow-Headers', 'Content-Type,Authorization')
+        response.headers.add('Access-Control-Allow-Methods', 'POST,OPTIONS')
+        return response
+        
     try:
         if 'foto' not in request.files:
-            return jsonify({"error": "Nenhuma foto enviada"}), 400
+            return jsonify({
+                'success': False,
+                'message': 'Nenhuma foto enviada'
+            }), 400
 
         foto = request.files['foto']
         temp_path = os.path.join(tempfile.gettempdir(), f"temp_{uuid.uuid4().hex}.jpg")
         foto.save(temp_path)
 
+        print("[DEBUG] Tentando reconhecer funcionário...")
         funcionario_id = reconhecer_funcionario(temp_path)
         os.remove(temp_path)
+        print(f"[DEBUG] Resultado reconhecimento: {funcionario_id if funcionario_id else 'Não reconhecido'}")
 
         if not funcionario_id:
-            return jsonify({"error": "Funcionário não reconhecido"}), 404
+            return jsonify({
+                'success': False,
+                'message': 'Funcionário não reconhecido'
+            }), 404
 
         # Buscar dados do funcionário
         response = tabela_funcionarios.get_item(Key={'id': funcionario_id})
         funcionario = response.get('Item')
 
         if not funcionario:
-            return jsonify({"error": "Funcionário não encontrado no banco de dados"}), 404
+            return jsonify({
+                'success': False,
+                'message': 'Funcionário não encontrado'
+            }), 404
 
         funcionario_nome = funcionario['nome']
-
-        # Verificar registros do dia
-        hoje = datetime.now().strftime('%Y-%m-%d')
+        agora = datetime.now()
+        hoje = agora.strftime('%Y-%m-%d')
+        
         response_registros = tabela_registros.scan(
             FilterExpression='funcionario_id = :id AND begins_with(data_hora, :hoje)',
             ExpressionAttributeValues={':id': funcionario_id, ':hoje': hoje}
         )
         registros_do_dia = sorted(response_registros['Items'], key=lambda x: x['data_hora'])
 
-        # Alternar tipo do registro
         tipo = 'entrada' if not registros_do_dia or registros_do_dia[-1]['tipo'] == 'saída' else 'saída'
 
-        # Registrar no DynamoDB com empresa_id e empresa_nome
         registro = {
             'registro_id': str(uuid.uuid4()),
             'funcionario_id': funcionario_id,
-            'data_hora': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
+            'data_hora': agora.strftime('%Y-%m-%d %H:%M:%S'),
             'tipo': tipo,
             'empresa_id': funcionario.get('empresa_id'),
             'empresa_nome': funcionario.get('empresa_nome')
@@ -108,15 +153,18 @@ def registrar_ponto():
         tabela_registros.put_item(Item=registro)
 
         return jsonify({
-            "success": True,
-            "funcionario": funcionario_nome,
-            "hora": registro['data_hora'],
-            "tipo": tipo
-        }), 200
+            'success': True,
+            'funcionario': funcionario_nome,
+            'hora': registro['data_hora'],
+            'tipo': tipo
+        })
 
     except Exception as e:
         print(f"Erro no registro de ponto: {str(e)}")
-        return jsonify({"error": "Erro interno no servidor"}), 500
+        return jsonify({
+            'success': False,
+            'message': 'Erro interno no servidor'
+        }), 500
 
 @routes.route('/funcionarios', methods=['GET'])
 @token_required
@@ -522,80 +570,105 @@ def listar_registros_protegido(payload):
     registros = response.get('Items', [])
     return jsonify(registros)
 
-@routes.route('/login', methods=['POST'])
+@routes.route('/login', methods=['POST', 'OPTIONS'])
+@cross_origin()
 def login():
+    if request.method == 'OPTIONS':
+        # Handle preflight request
+        response = jsonify({'status': 'OK'})
+        response.headers.add('Access-Control-Allow-Origin', '*')
+        response.headers.add('Access-Control-Allow-Headers', 'Content-Type,Authorization')
+        response.headers.add('Access-Control-Allow-Methods', 'POST,OPTIONS')
+        return response
+        
     from auth import verify_password
     import datetime
     import jwt
     from flask import current_app
-    data = request.json
-    usuario_id = data.get('usuario_id')
-    senha = data.get('senha')
+    
+    try:
+        data = request.json
+        usuario_id = data.get('usuario_id')
+        senha = data.get('senha')
 
-    # Buscar o usuário na tabela UsuarioEmpresa pelo usuario_id
-    response = tabela_usuarioempresa.get_item(Key={'usuario_id': usuario_id})
-    usuario = response.get('Item')
+        # Buscar o usuário na tabela UsuarioEmpresa pelo usuario_id
+        response = tabela_usuarioempresa.get_item(Key={'usuario_id': usuario_id})
+        usuario = response.get('Item')
 
-    if not usuario or not verify_password(senha, usuario['senha_hash']):
-        return jsonify({'error': 'Credenciais inválidas'}), 401
+        if not usuario or not verify_password(senha, usuario['senha_hash']):
+            return jsonify({'error': 'Credenciais inválidas'}), 401
 
-    # Gerar token com info da empresa, incluindo empresa_id
-    token = jwt.encode({
-        'usuario_id': usuario['usuario_id'],
-        'empresa_nome': usuario['empresa_nome'],
-        'empresa_id': usuario.get('empresa_id'),
-        'exp': datetime.datetime.utcnow() + datetime.timedelta(hours=12)
-    }, current_app.config['SECRET_KEY'], algorithm="HS256")
-    return jsonify({'token': token})
+        # Gerar token com info da empresa, incluindo empresa_id
+        token = jwt.encode({
+            'usuario_id': usuario['usuario_id'],
+            'empresa_nome': usuario['empresa_nome'],
+            'empresa_id': usuario.get('empresa_id'),
+            'exp': datetime.datetime.utcnow() + datetime.timedelta(hours=12)
+        }, current_app.config['SECRET_KEY'], algorithm="HS256")
+        
+        response = jsonify({'token': token})
+        response.headers.add('Access-Control-Allow-Origin', '*')
+        return response
+        
+    except Exception as e:
+        print(f"Erro no login: {str(e)}")
+        response = jsonify({'error': str(e)})
+        response.headers.add('Access-Control-Allow-Origin', '*')
+        return response, 500
 
-@routes.route('/cadastrar_usuario_empresa', methods=['POST'])
+# Add CORS support to the cadastrar_usuario_empresa route
+@routes.route('/cadastrar_usuario_empresa', methods=['POST', 'OPTIONS'])
+@cross_origin()
 def cadastrar_usuario_empresa():
+    if request.method == 'OPTIONS':
+        # Handle preflight request
+        response = jsonify({'status': 'OK'})
+        response.headers.add('Access-Control-Allow-Origin', '*')
+        response.headers.add('Access-Control-Allow-Headers', 'Content-Type,Authorization')
+        response.headers.add('Access-Control-Allow-Methods', 'POST,OPTIONS')
+        return response
+        
     from auth import hash_password
     import re
-    data = request.json
-    usuario_id = data.get('usuario_id')
-    email = data.get('email')
-    empresa_nome = data.get('empresa_nome')
-    senha = data.get('senha')
-    if not all([usuario_id, email, empresa_nome, senha]):
-        return jsonify({'error': 'Campos obrigatórios ausentes'}), 400
-    # Validação de formato de email
-    email_regex = r'^[\w\.-]+@[\w\.-]+\.\w{2,}$'
-    if not re.match(email_regex, email):
-        return jsonify({'error': 'Email inválido'}), 400
-    # Verifica se usuario_id já existe
-    response = tabela_usuarioempresa.get_item(Key={'usuario_id': usuario_id})
-    if 'Item' in response:
-        return jsonify({'error': 'Usuário já existe com esse usuario_id'}), 400
-    senha_hash = hash_password(senha)
-    from datetime import datetime
-    empresa_id = str(uuid.uuid4())
-    tabela_usuarioempresa.put_item(Item={
-        'usuario_id': usuario_id,
-        'email': email,
-        'empresa_nome': empresa_nome,
-        'empresa_id': empresa_id,
-        'senha_hash': senha_hash,
-        'data_criacao': datetime.now().isoformat()
-    })
-    return jsonify({'success': True, 'usuario_id': usuario_id, 'empresa_id': empresa_id}), 201
-def cadastrar_usuario_empresa():
-    from auth import hash_password
-    data = request.json
-    usuario_id = data.get('usuario_id')
-    email = data.get('email')
-    empresa_nome = data.get('empresa_nome')
-    senha = data.get('senha')
-    if not all([usuario_id, email, empresa_nome, senha]):
-        return jsonify({'error': 'Campos obrigatórios ausentes'}), 400
-    senha_hash = hash_password(senha)
-    from datetime import datetime
-    tabela_usuarioempresa.put_item(Item={
-        'usuario_id': usuario_id,
-        'email': email,
-        'empresa_nome': empresa_nome,
-        'senha_hash': senha_hash,
-        'data_criacao': datetime.now().isoformat()
-    })
-    return jsonify({'success': True, 'usuario_id': usuario_id})
-
+    
+    try:
+        data = request.json
+        usuario_id = data.get('usuario_id')
+        email = data.get('email')
+        empresa_nome = data.get('empresa_nome')
+        senha = data.get('senha')
+        
+        if not all([usuario_id, email, empresa_nome, senha]):
+            return jsonify({'error': 'Campos obrigatórios ausentes'}), 400
+        
+        # Validação de formato de email
+        email_regex = r'^[\w\.-]+@[\w\.-]+\.\w{2,}$'
+        if not re.match(email_regex, email):
+            return jsonify({'error': 'Email inválido'}), 400
+        
+        # Verifica se usuario_id já existe
+        response = tabela_usuarioempresa.get_item(Key={'usuario_id': usuario_id})
+        if 'Item' in response:
+            return jsonify({'error': 'Usuário já existe com esse usuario_id'}), 400
+        
+        senha_hash = hash_password(senha)
+        empresa_id = str(uuid.uuid4())
+        
+        tabela_usuarioempresa.put_item(Item={
+            'usuario_id': usuario_id,
+            'email': email,
+            'empresa_nome': empresa_nome,
+            'empresa_id': empresa_id,
+            'senha_hash': senha_hash,
+            'data_criacao': datetime.now().isoformat()
+        })
+        
+        response = jsonify({'success': True, 'usuario_id': usuario_id, 'empresa_id': empresa_id})
+        response.headers.add('Access-Control-Allow-Origin', '*')
+        return response, 201
+        
+    except Exception as e:
+        print(f"Erro ao cadastrar usuário empresa: {str(e)}")
+        response = jsonify({'error': str(e)})
+        response.headers.add('Access-Control-Allow-Origin', '*')
+        return response, 500
