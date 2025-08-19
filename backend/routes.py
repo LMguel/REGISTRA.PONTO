@@ -166,19 +166,48 @@ def registrar_ponto():
         }), 500
 
 @routes.route('/funcionarios', methods=['GET'])
-@token_required
+@token_required  
 def listar_funcionarios(payload):
     try:
-        print('DEBUG /funcionarios - payload recebido:', payload)
+        print('=== DEBUG FUNCIONARIOS ===')
         empresa_id = payload.get('empresa_id')
-        print('DEBUG /funcionarios - empresa_id extraído:', empresa_id)
-        response = tabela_funcionarios.scan(
-            FilterExpression=Attr('empresa_id').eq(empresa_id)
-        )
-        return jsonify(response['Items'])
+        print(f'empresa_id: {empresa_id}')
+        
+        # TESTE 1: Scan sem filtro (retorna TODOS os funcionários)
+        try:
+            print('Tentando scan sem filtro...')
+            response = tabela_funcionarios.scan()
+            all_items = response.get('Items', [])
+            print(f'Total de funcionários na tabela: {len(all_items)}')
+            
+            # Log dos primeiros itens para debug
+            for i, item in enumerate(all_items[:3]):
+                print(f'Item {i}: {item}')
+            
+            # TESTE 2: Filtrar manualmente em Python (não no DynamoDB)
+            empresa_funcionarios = []
+            for item in all_items:
+                item_empresa_id = item.get('empresa_id')
+                print(f'Comparando: "{item_empresa_id}" == "{empresa_id}"')
+                if item_empresa_id == empresa_id:
+                    empresa_funcionarios.append(item)
+                    
+            print(f'Funcionários filtrados para empresa {empresa_id}: {len(empresa_funcionarios)}')
+            
+            return jsonify({
+                'success': True,
+                'total_funcionarios': len(all_items),
+                'funcionarios_empresa': len(empresa_funcionarios),
+                'funcionarios': empresa_funcionarios
+            })
+            
+        except Exception as e:
+            print(f'ERRO no scan: {str(e)}')
+            return jsonify({'error': f'Erro no DynamoDB: {str(e)}'}), 500
+            
     except Exception as e:
-        print(f"Erro no backend: {str(e)}")
-        return jsonify({'error': 'Erro interno no servidor'}), 500
+        print(f'Erro geral: {str(e)}')
+        return jsonify({'error': str(e)}), 500
 
 @routes.route('/funcionarios/<funcionario_id>', methods=['GET'])
 @token_required
@@ -202,11 +231,18 @@ def atualizar_funcionario(payload, funcionario_id):
         funcionario = response.get('Item')
         if not funcionario or funcionario.get('empresa_id') != empresa_id:
             return jsonify({'error': 'Funcionário não encontrado'}), 404
+        
+        # ✅ CORREÇÃO: Usar request.get_json() em vez de request.data
         data = request.get_json()
+        if not data:
+            return jsonify({'error': 'JSON inválido ou ausente'}), 400
+            
         nome = data.get('nome')
         cargo = data.get('cargo')
         if not nome or not cargo:
             return jsonify({'error': 'Nome e cargo são obrigatórios'}), 400
+            
+        # Atualizar foto se fornecida
         if 'foto' in request.files:
             foto = request.files['foto']
             temp_path = os.path.join(tempfile.gettempdir(), f"temp_{uuid.uuid4().hex}.jpg")
@@ -236,6 +272,7 @@ def atualizar_funcionario(payload, funcionario_id):
             os.remove(temp_path)
             funcionario['foto_url'] = foto_url
             funcionario['face_id'] = face_id
+            
         funcionario['nome'] = nome
         funcionario['cargo'] = cargo
         tabela_funcionarios.put_item(Item=funcionario)
@@ -378,79 +415,157 @@ def listar_registros(payload):
     data_fim = request.args.get('fim')
     nome_funcionario = request.args.get('nome')
     funcionario_id = request.args.get('funcionario_id')
+    
     try:
         empresa_id = payload.get('empresa_id')
+        print(f"[DEBUG] empresa_id: {empresa_id}")
+        
+        if not empresa_id:
+            return jsonify({'error': 'Empresa ID não encontrado no token'}), 400
+        
         funcionarios_filtrados = []
+        
         # Buscar apenas funcionários da empresa
-        filtro_func = Attr('empresa_id').eq(empresa_id)
-        if nome_funcionario:
-            filtro_func = filtro_func & Attr('nome').contains(nome_funcionario)
-        response_func = tabela_funcionarios.scan(FilterExpression=filtro_func)
-        funcionarios_filtrados = [f['id'] for f in response_func['Items']]
+        try:
+            filtro_func = Attr('empresa_id').eq(empresa_id)
+            if nome_funcionario:
+                filtro_func = filtro_func & Attr('nome').contains(nome_funcionario)
+            
+            response_func = tabela_funcionarios.scan(FilterExpression=filtro_func)
+            funcionarios_filtrados = [f['id'] for f in response_func.get('Items', [])]
+            print(f"[DEBUG] funcionarios_filtrados: {funcionarios_filtrados}")
+            
+        except Exception as e:
+            print(f"[DEBUG] Erro ao buscar funcionários: {str(e)}")
+            return jsonify({'error': 'Erro ao buscar funcionários da empresa'}), 500
+        
         if funcionario_id:
             # Só permite se o funcionário for da empresa
             if funcionario_id in funcionarios_filtrados:
                 funcionarios_filtrados = [funcionario_id]
             else:
                 funcionarios_filtrados = []
-        filtro_registros = Attr('empresa_id').eq(empresa_id)
-        if data_inicio and data_fim:
-            filtro_registros = filtro_registros & Attr('data_hora').between(f"{data_inicio} 00:00:00", f"{data_fim} 23:59:59")
-        if funcionarios_filtrados:
-            filtro_registros = filtro_registros & Attr('funcionario_id').is_in(funcionarios_filtrados)
-        response = tabela_registros.scan(FilterExpression=filtro_registros)
-        registros = response['Items']
+        
+        # Se não houver funcionários na empresa, retornar vazio
+        if not funcionarios_filtrados:
+            print("[DEBUG] Nenhum funcionário encontrado na empresa")
+            return jsonify([])
+        
+        # Construir filtro de registros de forma mais segura
+        try:
+            filtro_registros = Attr('empresa_id').eq(empresa_id)
+            
+            # Adicionar filtro de data se fornecido
+            if data_inicio and data_fim:
+                filtro_registros = filtro_registros & Attr('data_hora').between(
+                    f"{data_inicio} 00:00:00", 
+                    f"{data_fim} 23:59:59"
+                )
+            
+            # Adicionar filtro de funcionários de forma segura
+            if funcionarios_filtrados:
+                # Usar apenas funcionários que realmente existem
+                funcionarios_validos = [fid for fid in funcionarios_filtrados if fid]
+                if funcionarios_validos:
+                    filtro_registros = filtro_registros & Attr('funcionario_id').is_in(funcionarios_validos)
+                else:
+                    return jsonify([])
+            
+            print(f"[DEBUG] Executando scan com filtro...")
+            response = tabela_registros.scan(FilterExpression=filtro_registros)
+            registros = response.get('Items', [])
+            print(f"[DEBUG] Encontrados {len(registros)} registros")
+            
+        except Exception as e:
+            print(f"[DEBUG] Erro no scan de registros: {str(e)}")
+            return jsonify({'error': f'Erro ao buscar registros: {str(e)}'}), 500
+        
         # Formatar data para DD-MM-AAAA
         for reg in registros:
             if 'data_hora' in reg:
-                data_part, hora_part = reg['data_hora'].split(' ')
-                yyyy, mm, dd = data_part.split('-')
-                reg['data_hora'] = f"{dd}-{mm}-{yyyy} {hora_part}"
+                try:
+                    data_part, hora_part = reg['data_hora'].split(' ')
+                    yyyy, mm, dd = data_part.split('-')
+                    reg['data_hora'] = f"{dd}-{mm}-{yyyy} {hora_part}"
+                except (ValueError, IndexError) as e:
+                    print(f"[DEBUG] Erro ao formatar data {reg.get('data_hora', 'N/A')}: {str(e)}")
+        
+        # Se solicitou funcionário específico, retornar registros com nome
         if funcionario_id:
-            funcionario = tabela_funcionarios.get_item(Key={'id': funcionario_id})
-            funcionario_nome = funcionario['Item']['nome'] if 'Item' in funcionario else 'Desconhecido'
+            try:
+                funcionario = tabela_funcionarios.get_item(Key={'id': funcionario_id})
+                funcionario_nome = funcionario.get('Item', {}).get('nome', 'Desconhecido')
+                for registro in registros:
+                    registro['funcionario_nome'] = funcionario_nome
+                return jsonify(registros)
+            except Exception as e:
+                print(f"[DEBUG] Erro ao buscar nome do funcionário: {str(e)}")
+                return jsonify(registros)  # Retornar sem nome em caso de erro
+        
+        # Calcular horas trabalhadas por funcionário
+        try:
+            horas_trabalhadas_por_funcionario = {}
             for registro in registros:
-                registro['funcionario_nome'] = funcionario_nome
-            return jsonify(registros)
-        horas_trabalhadas_por_funcionario = {}
-        for registro in registros:
-            funcionario_id = registro['funcionario_id']
-            if funcionario_id not in horas_trabalhadas_por_funcionario:
-                horas_trabalhadas_por_funcionario[funcionario_id] = {
-                    'nome': '',
-                    'horas_trabalhadas': timedelta()
+                funcionario_id = registro['funcionario_id']
+                if funcionario_id not in horas_trabalhadas_por_funcionario:
+                    horas_trabalhadas_por_funcionario[funcionario_id] = {
+                        'nome': '',
+                        'horas_trabalhadas': timedelta()
+                    }
+                
+                if registro['tipo'] == 'entrada':
+                    try:
+                        horas_trabalhadas_por_funcionario[funcionario_id]['ultima_entrada'] = datetime.strptime(
+                            registro['data_hora'], '%d-%m-%Y %H:%M:%S'
+                        )
+                    except ValueError:
+                        try:
+                            horas_trabalhadas_por_funcionario[funcionario_id]['ultima_entrada'] = datetime.strptime(
+                                registro['data_hora'], '%d-%m-%Y %H:%M'
+                            )
+                        except ValueError as e:
+                            print(f"[DEBUG] Erro ao parsear entrada: {registro['data_hora']}: {str(e)}")
+                
+                elif registro['tipo'] == 'saída' and 'ultima_entrada' in horas_trabalhadas_por_funcionario[funcionario_id]:
+                    try:
+                        try:
+                            saida = datetime.strptime(registro['data_hora'], '%d-%m-%Y %H:%M:%S')
+                        except ValueError:
+                            saida = datetime.strptime(registro['data_hora'], '%d-%m-%Y %H:%M')
+                        
+                        entrada = horas_trabalhadas_por_funcionario[funcionario_id].pop('ultima_entrada')
+                        horas_trabalhadas_por_funcionario[funcionario_id]['horas_trabalhadas'] += saida - entrada
+                    except ValueError as e:
+                        print(f"[DEBUG] Erro ao parsear saída: {registro['data_hora']}: {str(e)}")
+            
+            # Buscar nomes dos funcionários
+            for funcionario_id, dados in horas_trabalhadas_por_funcionario.items():
+                try:
+                    funcionario = tabela_funcionarios.get_item(Key={'id': funcionario_id})
+                    dados['nome'] = funcionario.get('Item', {}).get('nome', 'Desconhecido')
+                except Exception as e:
+                    print(f"[DEBUG] Erro ao buscar nome do funcionário {funcionario_id}: {str(e)}")
+                    dados['nome'] = 'Desconhecido'
+            
+            resultado = [
+                {
+                    'funcionario': dados['nome'],
+                    'funcionario_id': funcionario_id,
+                    'horas_trabalhadas': str(dados['horas_trabalhadas'])
                 }
-            if registro['tipo'] == 'entrada':
-                try:
-                    horas_trabalhadas_por_funcionario[funcionario_id]['ultima_entrada'] = datetime.strptime(
-                        registro['data_hora'], '%d-%m-%Y %H:%M:%S'
-                    )
-                except ValueError:
-                    horas_trabalhadas_por_funcionario[funcionario_id]['ultima_entrada'] = datetime.strptime(
-                        registro['data_hora'], '%d-%m-%Y %H:%M'
-                    )
-            elif registro['tipo'] == 'saída' and 'ultima_entrada' in horas_trabalhadas_por_funcionario[funcionario_id]:
-                try:
-                    saida = datetime.strptime(registro['data_hora'], '%d-%m-%Y %H:%M:%S')
-                except ValueError:
-                    saida = datetime.strptime(registro['data_hora'], '%d-%m-%Y %H:%M')
-                entrada = horas_trabalhadas_por_funcionario[funcionario_id].pop('ultima_entrada')
-                horas_trabalhadas_por_funcionario[funcionario_id]['horas_trabalhadas'] += saida - entrada
-        for funcionario_id, dados in horas_trabalhadas_por_funcionario.items():
-            funcionario = tabela_funcionarios.get_item(Key={'id': funcionario_id})
-            dados['nome'] = funcionario['Item']['nome'] if 'Item' in funcionario else 'Desconhecido'
-        resultado = [
-            {
-                'funcionario': dados['nome'],
-                'funcionario_id': funcionario_id,
-                'horas_trabalhadas': str(dados['horas_trabalhadas'])
-            }
-            for funcionario_id, dados in horas_trabalhadas_por_funcionario.items()
-        ]
-        return jsonify(resultado)
+                for funcionario_id, dados in horas_trabalhadas_por_funcionario.items()
+            ]
+            
+            return jsonify(resultado)
+            
+        except Exception as e:
+            print(f"[DEBUG] Erro ao calcular horas: {str(e)}")
+            # Em caso de erro no cálculo, retornar registros simples
+            return jsonify(registros)
+            
     except Exception as e:
-        print(f"Erro ao filtrar registros: {str(e)}")
-        return jsonify({'error': 'Erro ao filtrar registros'}), 500
+        print(f"Erro geral ao filtrar registros: {str(e)}")
+        return jsonify({'error': 'Erro interno no servidor', 'message': str(e)}), 500
 
 @routes.route('/funcionarios/nome', methods=['GET'])
 @token_required
@@ -472,13 +587,19 @@ def enviar_email_registros():
     try:
         from io import BytesIO
         from openpyxl import Workbook
-        data = request.json
+        
+        # ✅ CORREÇÃO: Usar request.get_json() em vez de request.json
+        data = request.get_json()
+        if not data:
+            return jsonify({'error': 'JSON inválido ou ausente'}), 400
+            
         funcionario = data.get('funcionario', 'Funcionário não especificado')
         periodo = data.get('periodo', 'Período não especificado')
         registros = data.get('registros', [])
         email_destino = data.get('email')
         if not email_destino:
             return jsonify({'error': 'Email não fornecido'}), 400
+            
         output = BytesIO()
         workbook = Workbook()
         sheet_resumo = workbook.active
@@ -512,12 +633,17 @@ def enviar_email_registros():
 @routes.route('/registrar_ponto_manual', methods=['POST'])
 @token_required
 def registrar_ponto_manual(payload):
+    # ✅ CORREÇÃO: Usar request.get_json() em vez de request.data
     data = request.get_json()
+    if not data:
+        return jsonify({'mensagem': 'JSON inválido ou ausente'}), 400
+        
     funcionario_id = data.get('funcionario_id')
     data_hora = data.get('data_hora')  # Formato: 'YYYY-MM-DD HH:MM'
     tipo = data.get('tipo')
     if not funcionario_id or not data_hora or not tipo:
         return jsonify({'mensagem': 'Funcionário, data/hora e tipo são obrigatórios'}), 400
+        
     # Verifica se o funcionário existe e se pertence à empresa do usuário
     empresa_nome = payload.get('empresa_nome')
     empresa_id = payload.get('empresa_id')
@@ -525,6 +651,7 @@ def registrar_ponto_manual(payload):
     funcionario = response.get('Item')
     if not funcionario or funcionario.get('empresa_nome') != empresa_nome or funcionario.get('empresa_id') != empresa_id:
         return jsonify({'mensagem': 'Funcionário não encontrado'}), 404
+        
     id_registro = str(uuid.uuid4())
     # Salva no DynamoDB
     tabela_registros.put_item(
@@ -561,13 +688,16 @@ def login():
         response.headers.add('Access-Control-Allow-Methods', 'POST,OPTIONS')
         return response
         
-    from auth import verify_password
+    from auth import verify_password, get_secret_key  # Importar a nova função
     import datetime
     import jwt
-    from flask import current_app
     
     try:
-        data = request.json
+        # ✅ CORREÇÃO: Usar request.get_json() em vez de request.json
+        data = request.get_json()
+        if not data:
+            return jsonify({'error': 'JSON inválido ou ausente'}), 400
+            
         usuario_id = data.get('usuario_id')
         senha = data.get('senha')
 
@@ -578,13 +708,18 @@ def login():
         if not usuario or not verify_password(senha, usuario['senha_hash']):
             return jsonify({'error': 'Credenciais inválidas'}), 401
 
+        # ✅ CORREÇÃO: Usar get_secret_key() para garantir string
+        secret_key = get_secret_key()
+        
         # Gerar token com info da empresa, incluindo empresa_id
         token = jwt.encode({
             'usuario_id': usuario['usuario_id'],
             'empresa_nome': usuario['empresa_nome'],
             'empresa_id': usuario.get('empresa_id'),
             'exp': datetime.datetime.utcnow() + datetime.timedelta(hours=12)
-        }, current_app.config['SECRET_KEY'], algorithm="HS256")
+        }, secret_key, algorithm="HS256")
+        
+        print(f"[DEBUG] Token gerado com SECRET_KEY tipo: {type(secret_key)}")
         
         response = jsonify({'token': token})
         response.headers.add('Access-Control-Allow-Origin', '*')
@@ -612,7 +747,11 @@ def cadastrar_usuario_empresa():
     import re
     
     try:
-        data = request.json
+        # ✅ CORREÇÃO: Usar request.get_json() em vez de request.json
+        data = request.get_json()
+        if not data:
+            return jsonify({'error': 'JSON inválido ou ausente'}), 400
+            
         usuario_id = data.get('usuario_id')
         email = data.get('email')
         empresa_nome = data.get('empresa_nome')
@@ -623,6 +762,7 @@ def cadastrar_usuario_empresa():
         
         # Validação de formato de email
         email_regex = r'^[\w\.-]+@[\w\.-]+\.\w{2,}$'
+        
         if not re.match(email_regex, email):
             return jsonify({'error': 'Email inválido'}), 400
         

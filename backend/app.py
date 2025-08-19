@@ -1,11 +1,18 @@
 from flask import Flask, jsonify
 from routes import routes
 import os
+import os
 import json
 from dotenv import load_dotenv
 from lambda_adapter import lambda_response
 
 load_dotenv()
+
+# Configurar SECRET_KEY do stage variables do API Gateway, se existir
+if 'AWS_LAMBDA_STAGE_VARIABLES' in os.environ:
+    stage_vars = json.loads(os.environ['AWS_LAMBDA_STAGE_VARIABLES'])
+    os.environ['SECRET_KEY'] = stage_vars.get('SECRET_KEY', 'frichimibu')
+
 
 app = Flask(__name__)
 
