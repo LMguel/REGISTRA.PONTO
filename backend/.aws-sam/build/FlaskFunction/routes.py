@@ -13,6 +13,7 @@ from auth import verify_token
 from werkzeug.security import check_password_hash
 import jwt
 from flask import current_app
+from boto3.dynamodb.conditions import Attr
 
 s3 = boto3.client('s3', region_name=REGIAO)
 
@@ -70,8 +71,7 @@ def deletar_registro(registro_id):
     try:
         # Buscar o registro pelo registro_id (scan, pois não é chave primária)
         response = tabela_registros.scan(
-            FilterExpression='registro_id = :rid',
-            ExpressionAttributeValues={':rid': registro_id}
+            FilterExpression=Attr('registro_id').eq(registro_id)
         )
         items = response.get('Items', [])
         if not items:
@@ -135,8 +135,7 @@ def registrar_ponto():
         hoje = agora.strftime('%Y-%m-%d')
         
         response_registros = tabela_registros.scan(
-            FilterExpression='funcionario_id = :id AND begins_with(data_hora, :hoje)',
-            ExpressionAttributeValues={':id': funcionario_id, ':hoje': hoje}
+            FilterExpression=Attr('funcionario_id').eq(funcionario_id) & Attr('data_hora').begins_with(hoje)
         )
         registros_do_dia = sorted(response_registros['Items'], key=lambda x: x['data_hora'])
 
@@ -170,10 +169,11 @@ def registrar_ponto():
 @token_required
 def listar_funcionarios(payload):
     try:
+        print('DEBUG /funcionarios - payload recebido:', payload)
         empresa_id = payload.get('empresa_id')
+        print('DEBUG /funcionarios - empresa_id extraído:', empresa_id)
         response = tabela_funcionarios.scan(
-            FilterExpression='empresa_id = :empresa_id',
-            ExpressionAttributeValues={':empresa_id': empresa_id}
+            FilterExpression=Attr('empresa_id').eq(empresa_id)
         )
         return jsonify(response['Items'])
     except Exception as e:
@@ -382,14 +382,10 @@ def listar_registros(payload):
         empresa_id = payload.get('empresa_id')
         funcionarios_filtrados = []
         # Buscar apenas funcionários da empresa
-        filtro_func = {
-            'FilterExpression': 'empresa_id = :empresa_id',
-            'ExpressionAttributeValues': {':empresa_id': empresa_id}
-        }
+        filtro_func = Attr('empresa_id').eq(empresa_id)
         if nome_funcionario:
-            filtro_func['FilterExpression'] += ' AND contains(nome, :nome)'
-            filtro_func['ExpressionAttributeValues'][':nome'] = nome_funcionario
-        response_func = tabela_funcionarios.scan(**filtro_func)
+            filtro_func = filtro_func & Attr('nome').contains(nome_funcionario)
+        response_func = tabela_funcionarios.scan(FilterExpression=filtro_func)
         funcionarios_filtrados = [f['id'] for f in response_func['Items']]
         if funcionario_id:
             # Só permite se o funcionário for da empresa
@@ -397,26 +393,12 @@ def listar_registros(payload):
                 funcionarios_filtrados = [funcionario_id]
             else:
                 funcionarios_filtrados = []
-        filtro = {}
-        expression_attributes = {}
-        conditions = []
-        # Sempre filtra por empresa
-        conditions.append('empresa_id = :empresa_id')
-        expression_attributes[':empresa_id'] = empresa_id
+        filtro_registros = Attr('empresa_id').eq(empresa_id)
         if data_inicio and data_fim:
-            conditions.append('data_hora BETWEEN :inicio AND :fim')
-            expression_attributes[':inicio'] = f"{data_inicio} 00:00:00"
-            expression_attributes[':fim'] = f"{data_fim} 23:59:59"
+            filtro_registros = filtro_registros & Attr('data_hora').between(f"{data_inicio} 00:00:00", f"{data_fim} 23:59:59")
         if funcionarios_filtrados:
-            conditions.append('funcionario_id IN ({})'.format(
-                ', '.join([f':id_{i}' for i in range(len(funcionarios_filtrados))])
-            ))
-            for i, func_id in enumerate(funcionarios_filtrados):
-                expression_attributes[f':id_{i}'] = func_id
-        if conditions:
-            filtro['FilterExpression'] = ' AND '.join(conditions)
-            filtro['ExpressionAttributeValues'] = expression_attributes
-        response = tabela_registros.scan(**filtro)
+            filtro_registros = filtro_registros & Attr('funcionario_id').is_in(funcionarios_filtrados)
+        response = tabela_registros.scan(FilterExpression=filtro_registros)
         registros = response['Items']
         # Formatar data para DD-MM-AAAA
         for reg in registros:
@@ -477,8 +459,7 @@ def buscar_nomes(payload):
     try:
         empresa_id = payload.get('empresa_id')
         response = tabela_funcionarios.scan(
-            FilterExpression='empresa_id = :empresa_id AND contains(nome, :nome)',
-            ExpressionAttributeValues={':empresa_id': empresa_id, ':nome': nome_parcial}
+            FilterExpression=Attr('empresa_id').eq(empresa_id) & Attr('nome').contains(nome_parcial)
         )
         nomes = [funcionario['nome'] for funcionario in response['Items']]
         return jsonify(nomes)
@@ -564,8 +545,7 @@ def listar_registros_protegido(payload):
     company_id = payload.get("company_id")
     # Exemplo de implementação simples para buscar registros por company_id
     response = tabela_registros.scan(
-        FilterExpression='company_id = :cid',
-        ExpressionAttributeValues={':cid': company_id}
+        FilterExpression=Attr('company_id').eq(company_id)
     )
     registros = response.get('Items', [])
     return jsonify(registros)
@@ -672,3 +652,14 @@ def cadastrar_usuario_empresa():
         response = jsonify({'error': str(e)})
         response.headers.add('Access-Control-Allow-Origin', '*')
         return response, 500
+
+@routes.route('/teste', methods=['GET', 'OPTIONS'])
+@cross_origin()
+def teste():
+    if request.method == 'OPTIONS':
+        response = jsonify({'status': 'OK'})
+        response.headers.add('Access-Control-Allow-Origin', '*')
+        response.headers.add('Access-Control-Allow-Headers', 'Content-Type,Authorization')
+        response.headers.add('Access-Control-Allow-Methods', 'GET,OPTIONS')
+        return response
+    return jsonify({'mensagem': 'Rota de teste funcionando!'}), 200
