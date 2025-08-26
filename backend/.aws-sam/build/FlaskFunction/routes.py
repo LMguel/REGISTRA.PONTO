@@ -232,13 +232,9 @@ def atualizar_funcionario(payload, funcionario_id):
         if not funcionario or funcionario.get('empresa_id') != empresa_id:
             return jsonify({'error': 'Funcionário não encontrado'}), 404
         
-        # ✅ CORREÇÃO: Usar request.get_json() em vez de request.data
-        data = request.get_json()
-        if not data:
-            return jsonify({'error': 'JSON inválido ou ausente'}), 400
-            
-        nome = data.get('nome')
-        cargo = data.get('cargo')
+        # Corrigir: ler nome/cargo de request.form (FormData)
+        nome = request.form.get('nome')
+        cargo = request.form.get('cargo')
         if not nome or not cargo:
             return jsonify({'error': 'Nome e cargo são obrigatórios'}), 400
             
@@ -333,53 +329,93 @@ def excluir_funcionario(funcionario_id):
         if not token:
             return jsonify({'error': 'Token ausente'}), 401
         payload = verify_token(token)
-        if not payload:
-            return jsonify({'error': 'Token inválido'}), 401
+        print("[EDIT FUNC] Início da atualização de funcionário", funcionario_id)
         empresa_id = payload.get('empresa_id')
         response = tabela_funcionarios.get_item(Key={'id': funcionario_id})
         funcionario = response.get('Item')
+        print("[EDIT FUNC] funcionario encontrado:", funcionario)
         if not funcionario or funcionario.get('empresa_id') != empresa_id:
+            print("[EDIT FUNC] Funcionário não encontrado ou não pertence à empresa")
             return jsonify({'error': 'Funcionário não encontrado'}), 404
-        try:
-            rekognition_response = rekognition.list_faces(CollectionId=COLLECTION)
-            for face in rekognition_response['Faces']:
-                if face['ExternalImageId'] == funcionario_id:
-                    rekognition.delete_faces(
-                        CollectionId=COLLECTION,
-                        FaceIds=[face['FaceId']]
-                    )
-                    break
-        except Exception as e:
-            print(f"Erro ao excluir face no Rekognition: {str(e)}")
-        tabela_funcionarios.delete_item(Key={'id': funcionario_id})
-        return jsonify({'message': 'Funcionário excluído com sucesso'}), 200
-    except Exception as e:
-        print(f"Erro ao excluir funcionário: {str(e)}")
-        return jsonify({'error': 'Erro ao excluir funcionário'}), 500
 
-@routes.route('/cadastrar_funcionario', methods=['POST'])
-@token_required
-def cadastrar_funcionario(payload):
-    try:
         nome = request.form.get('nome')
         cargo = request.form.get('cargo')
-        foto = request.files.get('foto')
-        if not all([nome, cargo, foto]):
-            return jsonify({"error": "Nome, cargo e foto são obrigatórios"}), 400
+        print(f"[EDIT FUNC] nome: {nome}, cargo: {cargo}")
+        if not nome or not cargo:
+            print("[EDIT FUNC] Nome ou cargo ausente")
+            return jsonify({'error': 'Nome e cargo são obrigatórios'}), 400
+
+        # Atualizar foto se fornecida
+        if 'foto' in request.files:
+            foto = request.files['foto']
+            print("[EDIT FUNC] Foto recebida:", foto.filename, foto.content_type)
+            temp_path = os.path.join(tempfile.gettempdir(), f"temp_{uuid.uuid4().hex}.jpg")
+            foto.save(temp_path)
+            print("[EDIT FUNC] Foto salva em:", temp_path)
+            s3.upload_file(
+                temp_path,
+                BUCKET,
+                f"funcionarios/{funcionario_id}.jpg",
+                ExtraArgs={'ContentType': 'image/jpeg'}
+            )
+            foto_url = f"https://{BUCKET}.s3.{REGIAO}.amazonaws.com/funcionarios/{funcionario_id}.jpg"
+            print("[EDIT FUNC] Foto URL:", foto_url)
+            try:
+                if 'face_id' in funcionario:
+                    print("[EDIT FUNC] Deletando face antiga do Rekognition")
+                    rekognition.delete_faces(
+                        CollectionId=COLLECTION,
+                        FaceIds=[funcionario['face_id']]
+                    )
+                with open(temp_path, 'rb') as image:
+                    rekognition_response = rekognition.index_faces(
+                        CollectionId=COLLECTION,
+                        Image={'Bytes': image.read()},
+                        ExternalImageId=funcionario_id,
+                        MaxFaces=1,
+                        QualityFilter="AUTO",
+                        DetectionAttributes=["ALL"]
+                    )
+                    print("[EDIT FUNC] Rekognition response:", rekognition_response)
+                    if not rekognition_response['FaceRecords']:
+                        print("[EDIT FUNC] Nenhum rosto detectado na nova foto!")
+                        os.remove(temp_path)
+                        return jsonify({'error': 'Nenhum rosto detectado na nova foto.'}), 400
+                    face_id = rekognition_response['FaceRecords'][0]['Face']['FaceId']
+                    funcionario['face_id'] = face_id
+            except Exception as e:
+                print(f"[EDIT FUNC] Erro ao processar foto: {e}")
+                os.remove(temp_path)
+                return jsonify({'error': f'Erro ao processar foto: {e}'}), 500
+            os.remove(temp_path)
+            funcionario['foto_url'] = foto_url
+
+        funcionario['nome'] = nome
+        funcionario['cargo'] = cargo
+        print("[EDIT FUNC] Salvando funcionário atualizado:", funcionario)
+        tabela_funcionarios.put_item(Item=funcionario)
+        print("[EDIT FUNC] Atualização concluída com sucesso!")
+        return jsonify({'message': 'Funcionário atualizado com sucesso!'}), 200
+        return jsonify({"error": "Nome, cargo e foto são obrigatórios"}), 400
         funcionario_id = f"{nome.lower().replace(' ', '_')}_{uuid.uuid4().hex[:6]}"
         foto_nome = f"funcionarios/{funcionario_id}.jpg"
         temp_path = os.path.join(tempfile.gettempdir(), foto_nome.split('/')[-1])
         foto.save(temp_path)
+        print("📌 Foto salva em:", temp_path)
         foto_url = enviar_s3(temp_path, foto_nome)
+        print("📌 Foto URL:", foto_url)
         with open(temp_path, 'rb') as image:
+            img_bytes = image.read()
+            print("📌 Tamanho da imagem em bytes:", len(img_bytes))
             rekognition_response = rekognition.index_faces(
                 CollectionId=COLLECTION,
-                Image={'Bytes': image.read()},
+                Image={'Bytes': img_bytes},
                 ExternalImageId=funcionario_id,
                 MaxFaces=1,
                 QualityFilter="AUTO",
                 DetectionAttributes=["DEFAULT"]
             )
+        print("📌 Rekognition response:", rekognition_response)
         if not rekognition_response['FaceRecords']:
             os.remove(temp_path)
             return jsonify({"error": "Nenhum rosto detectado na imagem."}), 400
