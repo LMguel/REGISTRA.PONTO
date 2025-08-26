@@ -20,7 +20,7 @@ function Login() {
       });
       const { token } = response.data;
       if (token) {
-        localStorage.setItem('access_token', token);
+        localStorage.setItem('token', token); // salva como 'token'
         setSnackbar({ open: true, message: 'Login realizado com sucesso!', severity: 'success' });
         setTimeout(() => navigate('/home'), 1000);
       } else {

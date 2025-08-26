@@ -14,12 +14,14 @@ import {
   TextField,
   Button,
   Autocomplete,
-  Snackbar
+  Snackbar,
+  IconButton
 } from '@mui/material';
 import { useNavigate } from 'react-router-dom';
 import api from '../services/api';
 import * as XLSX from 'xlsx';
 import FileDownloadIcon from '@mui/icons-material/FileDownload';
+import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 
 function ConsultarRegistros() {
   const [registros, setRegistros] = useState([]);
@@ -154,10 +156,28 @@ function ConsultarRegistros() {
         justifyContent: 'center',
         background: 'linear-gradient(135deg, #e0f7fa, #80deea)',
         padding: '20px',
+        position: 'relative',
       }}
     >
-      <Paper elevation={3} sx={{ p: 3, maxWidth: '90%', width: '100%' }}>
-        
+      <IconButton
+        onClick={() => navigate('/home')}
+        sx={{
+          position: 'absolute',
+          top: 24,
+          left: 24,
+          backgroundColor: '#fff',
+          border: '2px solid #0288d1',
+          color: '#0288d1',
+          zIndex: 10,
+          '&:hover': {
+            backgroundColor: '#e3f2fd',
+          },
+        }}
+        aria-label="Voltar para Home"
+      >
+        <ArrowBackIcon />
+      </IconButton>
+      <Paper elevation={3} sx={{ p: 3, maxWidth: '90%', width: '100%' }}>   
         <Typography
           variant="h5"
           sx={{
@@ -169,7 +189,6 @@ function ConsultarRegistros() {
         >
           Consulta de Registros
         </Typography>
-
         
         <Box sx={{ display: 'flex', justifyContent: 'flex-end', gap: 2, mb: 3 }}>
           <Button
@@ -183,13 +202,6 @@ function ConsultarRegistros() {
             }}
           >
             Exportar Excel
-          </Button>
-          <Button
-            variant="outlined"
-            onClick={() => navigate('/home')}
-            sx={{ padding: '10px 20px', fontSize: '1rem', borderRadius: '8px' }}
-          >
-            Voltar
           </Button>
         </Box>
 

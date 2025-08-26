@@ -9,7 +9,9 @@ import {
   Snackbar,
   Alert,
   Stack,
+  IconButton,
 } from '@mui/material';
+import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import api from '../services/api';
 import { useNavigate } from 'react-router-dom';
 
@@ -31,13 +33,20 @@ function RegistrarPonto() {
   const carregarFuncionarios = async () => {
     setLoading(true);
     try {
-      const token = localStorage.getItem('access_token');
+  const token = localStorage.getItem('token');
       const response = await api.get('funcionarios', {
         headers: {
           Authorization: `Bearer ${token}`
         }
       });
-      setFuncionarios(response.data);
+      // Garante que funcionarios seja sempre array, independente do formato da resposta
+      if (Array.isArray(response.data)) {
+        setFuncionarios(response.data);
+      } else if (response.data && Array.isArray(response.data.funcionarios)) {
+        setFuncionarios(response.data.funcionarios);
+      } else {
+        setFuncionarios([]);
+      }
     } catch (error) {
       setSnackbar({
         open: true,
@@ -107,8 +116,28 @@ function RegistrarPonto() {
         justifyContent: 'center',
         background: 'linear-gradient(135deg, #e0f7fa, #80deea)',
         padding: '20px',
+        position: 'relative',
       }}
     >
+      {/* Botão de voltar para Home */}
+      <IconButton
+        onClick={() => navigate('/home')}
+        sx={{
+          position: 'absolute',
+          top: 24,
+          left: 24,
+          backgroundColor: '#fff',
+          border: '2px solid #0288d1',
+          color: '#0288d1',
+          zIndex: 10,
+          '&:hover': {
+            backgroundColor: '#e3f2fd',
+          },
+        }}
+        aria-label="Voltar para Home"
+      >
+        <ArrowBackIcon />
+      </IconButton>
       <Paper elevation={6} sx={{ p: 4, maxWidth: 600, width: '100%', borderRadius: '16px', border: '2px solid #0288d1', background: '#fff', boxShadow: '0 4px 20px rgba(2,136,209,0.10)' }}>
         <Typography
           variant="h5"
@@ -127,8 +156,8 @@ function RegistrarPonto() {
             fullWidth
             disabled={loading || funcionarios.length === 0}
           >
-            {funcionarios.map((func) => (
-              <MenuItem key={func.id} value={func.id}>
+            {Array.isArray(funcionarios) && funcionarios.map((func) => (
+              <MenuItem key={func.funcionario_id || func.id} value={func.funcionario_id || func.id}>
                 {func.nome}
               </MenuItem>
             ))}
@@ -163,7 +192,7 @@ function RegistrarPonto() {
             fullWidth
           />
 
-          <Stack direction="row" spacing={2} justifyContent="space-between">
+          <Stack direction="row" spacing={2} justifyContent="center">
             <Button
               variant="contained"
               onClick={registrarPontoManual}
@@ -176,13 +205,6 @@ function RegistrarPonto() {
               }}
             >
               Registrar Manualmente
-            </Button>
-            <Button
-              variant="outlined"
-              onClick={() => navigate('/home')}
-              sx={{ padding: '10px 20px', fontSize: '1rem', borderRadius: '8px' }}
-            >
-              Voltar
             </Button>
           </Stack>
         </Stack>

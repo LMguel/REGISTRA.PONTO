@@ -10,10 +10,10 @@ import {
   Snackbar,
   Alert,
 } from '@mui/material';
-import { PhotoCamera, Save } from '@mui/icons-material';
+import { PhotoCamera, Save, ArrowBack } from '@mui/icons-material';
+import IconButton from '@mui/material/IconButton';
 import api from '../services/api';
 import { useNavigate, useParams } from 'react-router-dom';
-import Webcam from 'react-webcam';
 
 function EditarFuncionario() {
   const { id } = useParams();
@@ -21,8 +21,6 @@ function EditarFuncionario() {
   const [novaFoto, setNovaFoto] = useState(null);
   const [loading, setLoading] = useState(false);
   const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'success' });
-  const [mostrarWebcam, setMostrarWebcam] = useState(false);
-  const webcamRef = React.useRef(null);
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -50,10 +48,11 @@ function EditarFuncionario() {
     setFuncionario({ ...funcionario, [name]: value });
   };
 
-  const capturarFoto = () => {
-    const foto = webcamRef.current.getScreenshot();
-    setNovaFoto(foto); // Atualizar a nova foto
-    setMostrarWebcam(false); // Fechar a webcam
+  const handleFotoChange = (e) => {
+    const file = e.target.files[0];
+    if (file) {
+      setNovaFoto(file);
+    }
   };
 
   const handleSubmit = async (e) => {
@@ -65,12 +64,13 @@ function EditarFuncionario() {
       formData.append('cargo', funcionario.cargo);
 
       if (novaFoto) {
-        const blob = await fetch(novaFoto).then((res) => res.blob());
-        formData.append('foto', blob, 'nova_foto.jpg'); // Enviar a nova foto
+        formData.append('foto', novaFoto, novaFoto.name);
       }
 
       await api.put(`funcionarios/${id}`, formData, {
-        headers: { 'Content-Type': 'multipart/form-data' },
+        headers: {
+          Authorization: `Bearer ${localStorage.getItem('token')}`
+        },
       });
 
       setSnackbar({ open: true, message: 'Funcionário atualizado com sucesso!', severity: 'success' });
@@ -96,8 +96,28 @@ function EditarFuncionario() {
         justifyContent: 'center',
         background: 'linear-gradient(135deg, #e0f7fa, #80deea)',
         padding: '20px',
+        position: 'relative',
       }}
     >
+      {/* Botão de voltar para lista */}
+      <IconButton
+        onClick={() => navigate('/listar')}
+        sx={{
+          position: 'absolute',
+          top: 24,
+          left: 24,
+          backgroundColor: '#fff',
+          border: '2px solid #0288d1',
+          color: '#0288d1',
+          zIndex: 10,
+          '&:hover': {
+            backgroundColor: '#e3f2fd',
+          },
+        }}
+        aria-label="Voltar para lista"
+      >
+        <ArrowBack />
+      </IconButton>
       <Paper elevation={3} sx={{ p: 3, maxWidth: '600px', width: '100%' }}>
         <Typography variant="h5" gutterBottom>
           Editar Funcionário
@@ -109,41 +129,25 @@ function EditarFuncionario() {
           <form onSubmit={handleSubmit}>
             <Box display="flex" flexDirection="column" alignItems="center" mb={3}>
               <Avatar
-                src={novaFoto || funcionario.foto_url} // Exibir a nova foto ou a existente
+                src={novaFoto ? URL.createObjectURL(novaFoto) : funcionario.foto_url}
                 alt={funcionario.nome}
                 sx={{ width: 150, height: 150, mb: 2 }}
               />
               <Button
                 variant="outlined"
+                component="label"
                 startIcon={<PhotoCamera />}
-                onClick={() => setMostrarWebcam(!mostrarWebcam)}
+                sx={{ mt: 1 }}
               >
-                {mostrarWebcam ? 'Fechar Webcam' : 'Nova Foto'}
+                Nova Foto
+                <input
+                  type="file"
+                  accept="image/*"
+                  hidden
+                  onChange={handleFotoChange}
+                />
               </Button>
             </Box>
-
-            {mostrarWebcam && (
-              <Box
-                sx={{
-                  display: 'flex',
-                  flexDirection: 'column',
-                  alignItems: 'center',
-                  mb: 3,
-                }}
-              >
-                <Webcam
-                  audio={false}
-                  ref={webcamRef}
-                  screenshotFormat="image/jpeg"
-                  width={300}
-                  height={300}
-                  style={{ borderRadius: '8px', marginBottom: '10px' }}
-                />
-                <Button variant="contained" onClick={capturarFoto}>
-                  Capturar Foto
-                </Button>
-              </Box>
-            )}
 
             <TextField
               label="Nome"
@@ -164,22 +168,9 @@ function EditarFuncionario() {
               required
             />
 
-            <Box display="flex" justifyContent="space-between" mt={3}>
+            <Box display="flex" justifyContent="center" mt={3}>
               <Button type="submit" variant="contained" startIcon={<Save />}>
                 Salvar
-              </Button>
-              <Button
-                variant="outlined"
-                onClick={() => navigate('/')}
-                sx={{
-                  background: 'linear-gradient(135deg, #4fc3f7, #0288d1)',
-                  color: '#fff',
-                  '&:hover': {
-                    background: 'linear-gradient(135deg, #0288d1, #01579b)',
-                  },
-                }}
-              >
-                Voltar
               </Button>
             </Box>
           </form>

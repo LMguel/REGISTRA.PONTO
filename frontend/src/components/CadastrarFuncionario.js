@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
-import { TextField, Button, Paper, Typography, Box, Modal } from '@mui/material';
+import { TextField, Button, Paper, Typography, Box, Modal, IconButton } from '@mui/material';
+import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import api from '../services/api';
 import { useNavigate } from 'react-router-dom';
 
@@ -47,7 +48,6 @@ function CadastrarFuncionario() {
       const token = localStorage.getItem('access_token');
       await api.post('cadastrar_funcionario', formData, {
         headers: {
-          'Content-Type': 'multipart/form-data',
           'Authorization': `Bearer ${token}`
         },
       });
@@ -73,8 +73,28 @@ function CadastrarFuncionario() {
         justifyContent: 'center',
         background: 'linear-gradient(135deg, #e0f7fa, #80deea)',
         padding: '20px',
+        position: 'relative',
       }}
     >
+      {/* Botão de voltar para lista */}
+      <IconButton
+        onClick={() => navigate('/listar')}
+        sx={{
+          position: 'absolute',
+          top: 24,
+          left: 24,
+          backgroundColor: '#fff',
+          border: '2px solid #0288d1',
+          color: '#0288d1',
+          zIndex: 10,
+          '&:hover': {
+            backgroundColor: '#e3f2fd',
+          },
+        }}
+        aria-label="Voltar para lista"
+      >
+        <ArrowBackIcon />
+      </IconButton>
       <Paper elevation={6} sx={{ p: 3, maxWidth: 600, width: '100%', borderRadius: '16px', border: '2px solid #0288d1', background: '#fff', boxShadow: '0 4px 20px rgba(2,136,209,0.10)' }}>
         <Typography
           variant="h5"

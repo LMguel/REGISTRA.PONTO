@@ -217,13 +217,29 @@ function Registros() {
         justifyContent: 'center',
         background: 'linear-gradient(135deg, #e0f7fa, #80deea)',
         padding: '20px',
+        position: 'relative',
       }}
     >
+      <IconButton
+        onClick={() => navigate('/home')}
+        sx={{
+          position: 'absolute',
+          top: 24,
+          left: 24,
+          backgroundColor: '#fff',
+          border: '2px solid #0288d1',
+          color: '#0288d1',
+          zIndex: 10,
+          '&:hover': {
+            backgroundColor: '#e3f2fd',
+          },
+        }}
+        aria-label="Voltar para Home"
+      >
+        <ArrowBackIcon />
+      </IconButton>
       <Paper elevation={3} sx={{ p: 3, maxWidth: '90%', width: '100%' }}>
-        <Box sx={{ display: 'flex', alignItems: 'center', mb: 3 }}>
-          <IconButton onClick={() => navigate(-1)} sx={{ mr: 2 }}>
-            <ArrowBackIcon />
-          </IconButton>
+        <Box sx={{ display: 'flex', alignItems: 'center', mb: 3, justifyContent: 'center' }}>
           <Typography
             variant="h5"
             sx={{

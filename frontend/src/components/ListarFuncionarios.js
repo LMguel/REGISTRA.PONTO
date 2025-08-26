@@ -1,4 +1,6 @@
 import React, { useEffect, useState } from 'react';
+import IconButton from '@mui/material/IconButton';
+import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import {
   Table,
   TableBody,
@@ -33,13 +35,15 @@ function ListarFuncionarios() {
   const carregarFuncionarios = async () => {
     setLoading(true);
     try {
-      const token = localStorage.getItem('access_token');
+      const token = localStorage.getItem('token');
       const response = await api.get('funcionarios', {
         headers: {
           Authorization: `Bearer ${token}`
         }
       });
-      setFuncionarios(response.data);
+      // Ajuste para response.data.items se vier assim, senão usa response.data.funcionarios ou response.data
+      const data = response.data.items || response.data.funcionarios || response.data;
+      setFuncionarios(data);
     } catch (error) {
       setSnackbar({
         open: true,
@@ -53,7 +57,12 @@ function ListarFuncionarios() {
 
   const excluirFuncionario = async (id) => {
     try {
-      await api.delete(`funcionarios/${id}`);
+      const token = localStorage.getItem('token');
+      await api.delete(`funcionarios/${id}`, {
+        headers: {
+          Authorization: `Bearer ${token}`
+        }
+      });
       setSnackbar({
         open: true,
         message: 'Funcionário excluído com sucesso!',
@@ -88,8 +97,28 @@ function ListarFuncionarios() {
         justifyContent: 'center',
         background: 'linear-gradient(135deg, #e0f7fa, #80deea)',
         padding: '20px',
+        position: 'relative',
       }}
     >
+      {/* Botão de voltar para Home */}
+      <IconButton
+        onClick={() => navigate('/home')}
+        sx={{
+          position: 'absolute',
+          top: 24,
+          left: 24,
+          backgroundColor: '#fff',
+          border: '2px solid #0288d1',
+          color: '#0288d1',
+          zIndex: 10,
+          '&:hover': {
+            backgroundColor: '#e3f2fd',
+          },
+        }}
+        aria-label="Voltar para Home"
+      >
+        <ArrowBackIcon />
+      </IconButton>
       <Typography
         variant="h4"
         sx={{
@@ -120,17 +149,6 @@ function ListarFuncionarios() {
         >
           Cadastrar Novo Funcionário
         </Button>
-        <Button
-          variant="outlined"
-          onClick={() => navigate('/home')}
-          sx={{
-            padding: '10px 20px',
-            fontSize: '1rem',
-            borderRadius: '8px',
-          }}
-        >
-          Voltar
-        </Button>
       </Stack>
 
       {loading ? (
@@ -148,7 +166,7 @@ function ListarFuncionarios() {
             </TableHead>
             <TableBody>
               {funcionarios.map((funcionario) => (
-                <TableRow key={funcionario.id} sx={{ background: '#f4f6f8', borderRadius: '8px' }}>
+                <TableRow key={funcionario.funcionario_id || funcionario.id} sx={{ background: '#f4f6f8', borderRadius: '8px' }}>
                   <TableCell>
                     <Avatar src={funcionario.foto_url} alt={funcionario.nome} />
                   </TableCell>
@@ -157,7 +175,7 @@ function ListarFuncionarios() {
                   <TableCell>
                     <Button
                       startIcon={<Edit />}
-                      onClick={() => navigate(`/editar/${funcionario.id}`)}
+                      onClick={() => navigate(`/editar/${funcionario.funcionario_id || funcionario.id}`)}
                       sx={{ background: '#0288d1', color: '#fff', borderRadius: '8px', fontWeight: 500, px: 2, mr: 1, '&:hover': { background: '#0277bd' } }}
                     >
                       Editar
@@ -166,7 +184,7 @@ function ListarFuncionarios() {
                       startIcon={<Delete />}
                       color="error"
                       sx={{ ml: 1, borderRadius: '8px', fontWeight: 500, px: 2 }}
-                      onClick={() => excluirFuncionario(funcionario.id)}
+                      onClick={() => excluirFuncionario(funcionario.funcionario_id || funcionario.id)}
                     >
                       Excluir
                     </Button>
