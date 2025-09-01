@@ -221,7 +221,7 @@ function Registros() {
       }}
     >
       <IconButton
-        onClick={() => navigate('/home')}
+        onClick={() => navigate('/consultar')}
         sx={{
           position: 'absolute',
           top: 24,
